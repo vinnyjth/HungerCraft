@@ -50,6 +50,7 @@ public class HungerListener implements Listener {
 		return false;
 	}
 	
+	@SuppressWarnings("unchecked")
 	@EventHandler
 	public void blockInteract(PlayerInteractEvent event){
 		Player player = event.getPlayer();
