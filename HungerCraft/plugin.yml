@@ -1,0 +1,8 @@
+author: Dr_MadMan
+database: false
+description: "A plugin that enables easy server wide Hunger Games events.\r\n"
+generator: http://dinnerbone.com/minecraft/tools/pluginator/
+main: me.dr_madman.hungercraft.HungerCraft
+name: HungerCraft
+startup: postworld
+version: '.1'
