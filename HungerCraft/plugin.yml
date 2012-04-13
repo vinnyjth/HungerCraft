@@ -6,3 +6,9 @@ main: me.dr_madman.hungercraft.HungerCraft
 name: HungerCraft
 startup: postworld
 version: '.1'
+commands:
+   teleport:
+      description: This is a demo command.
+      usage: /<command> [player]
+      permission: <plugin name>.basic
+      permission-message: You don't have <permission>
