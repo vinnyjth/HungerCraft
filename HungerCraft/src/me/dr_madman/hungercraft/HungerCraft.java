@@ -1,10 +1,13 @@
 package me.dr_madman.hungercraft;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Logger;
 
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -14,7 +17,8 @@ import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public class HungerCraft extends JavaPlugin implements CommandExecutor{
-	Logger logger;
+	@SuppressWarnings("unused")
+	private static final Logger logger = Logger.getLogger("Minecraft");
 	public static FileConfiguration cfg;
 	public static HungerCraft plugin;
 	public static PluginDescriptionFile plugdes;
@@ -38,7 +42,21 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         cfg.addDefault("isactive", false);
         cfg.addDefault("usespawnpoints", false);
         cfg.addDefault("spawnradius", 30);
+        cfg.addDefault("arenasize", 50);
+        cfg.addDefault("borderkill", true);
+        cfg.addDefault("participants", null);
+        cfg.addDefault("leftgame", null);
+        cfg.addDefault("dead", null);
+        getConfig().options().copyDefaults(true);
         saveConfig();
+        List<World> worlds = Bukkit.getServer().getWorlds();
+        for (World world : worlds){
+        	world.setSpawnLocation(0, 64, 0);
+        	world.setPVP(false);
+        	
+        }
+        
+        
         
 	}
 	@Override
@@ -56,12 +74,56 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			
 		}
 	}
-	
-	public void startGame(){
+	public void setParticipants(){
+		Player[] players = Bukkit.getOnlinePlayers();
+		List<String> participants = new ArrayList<String>();
+	    for (Player player : players){
+			String parname = player.getName();
+			participants.add(parname);
+	    }	
+	    cfg = getConfig();
+	    cfg.set("participants", participants);
+	    saveConfig();
+	}
+	public void startGame(Player sender){
 		cfg = getConfig();
 		cfg.set("isactive", true);
 		saveConfig();
 		randomTeleport();
+		sender.getWorld().setPVP(true);
+	    World world = sender.getWorld();
+	    world.setTime(0);
+	    setParticipants();
+	}
+	public void clearList(String list){
+		cfg = getConfig();
+		cfg.set(list, null);
+		saveConfig();
+		
+	}
+	public void stopGame(Player sender){
+		cfg = getConfig();
+		cfg.set("isactive", false);
+		clearList("participants");
+		clearList("leftgame");
+		clearList("dead");
+		saveConfig();
+		sender.getWorld().setPVP(false);
+		
+	}
+	public void stopGameEndofRound(){
+		cfg = getConfig();
+		cfg.set("isactive", false);
+		clearList("participants");
+		clearList("leftgame");
+		clearList("dead");
+		saveConfig();
+		List<World> worlds = Bukkit.getServer().getWorlds();
+        for (World world : worlds){
+        	world.setSpawnLocation(0, 64, 0);
+        	world.setPVP(false);
+        	
+        }
 		
 	}
 
@@ -69,18 +131,44 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		Player player = (Player) sender;
 		if (cmd.getName().equalsIgnoreCase("teleport")){
 			
-			Location loc = randomteleport.randomLocation(player.getWorld());
-			player.teleport(loc);
+			Location loc = getLocation(player, 0);
+			player.teleport(loc.add(new Location(player.getWorld(), 0, 1, 0)));
 			return true;
 				
 		}
-		if(cmd.equals("start")){
+		if(cmd.getName().equalsIgnoreCase("startgame")){
 			if(player.isOp()){
-				startGame();
+				if(!getConfig().getBoolean("isactive")){
+					startGame(player);
+					Bukkit.getServer().broadcastMessage("The Hunger Games have Begun!");
+					return true;
+				}
+				else {
+					player.sendMessage("Game is already started!");
+				}
+
 
 			}
 			else {
 				player.sendMessage("You must be an OP to start the game!");
+				return true;
+			}
+		}
+		if(cmd.getName().equalsIgnoreCase("stopgame")){
+			if(player.isOp()){
+				if(getConfig().getBoolean("isactive")){
+					stopGame(player);
+					player.sendMessage("Game has been stopped");
+					return true;
+				}
+				else {
+					player.sendMessage("Game is already stopped!");
+				}
+
+			}
+			else {
+				player.sendMessage("You must be an OP to start the game!");
+				return true;
 			}
 		}
 		return false;

@@ -12,3 +12,14 @@ commands:
       usage: /<command> [player]
       permission: <plugin name>.basic
       permission-message: You don't have <permission>
+   startgame:
+      description: This is a demo command.
+      usage: /<command> [player]
+      permission: <plugin name>.basic
+      permission-message: You don't have <permission>
+   stopgame:
+      description: This is a demo command.
+      usage: /<command> [player]
+      permission: <plugin name>.basic
+      permission-message: You don't have <permission>
+
