@@ -21,6 +21,7 @@ import org.bukkit.event.player.PlayerLoginEvent;
 import org.bukkit.event.player.PlayerLoginEvent.Result;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.server.ServerListPingEvent;
 
 public class HungerListener implements Listener {
 	private HungerCraft plugin;
@@ -51,11 +52,16 @@ public class HungerListener implements Listener {
 		return activestate;
 	}
 	public void setupNewGame(){
-		World world = this.plugin.getServer().getWorld("world");
+		List<World> worlds = Bukkit.getServer().getWorlds();
+		for(Player player :Bukkit.getServer().getOnlinePlayers()){
+			player.kickPlayer("Server restarting(nice job btw)");
+		}
+		World world = worlds.get(0);
 		File worldFile = world.getWorldFolder();
-		plugin.getServer().unloadWorld("world", true);
-		Bukkit.getServer().broadcastMessage("World Unloaded");
-		deleteDir(worldFile);
+		if(plugin.getServer().unloadWorld("world", true)){
+			Bukkit.getServer().broadcastMessage("World Unloaded");
+			deleteDir(worldFile);
+		}
 	}
 	public static boolean deleteDir(File dir) {
 		if (dir.isDirectory()) {
@@ -211,19 +217,26 @@ public class HungerListener implements Listener {
 		Player player = event.getPlayer();
 		String pname = player.getName();
 		if(checkActive()){
-			if(cfg.getStringList("leftgame").contains(pname)){
-				event.allow();
-				removeList(player,"leftgame");
-				return;
-			}
 			if(cfg.getStringList("dead").contains(pname)){
 					event.disallow(Result.KICK_OTHER, "You have died, wait for the next game");
 					return;
 
 			}
+			if(cfg.getStringList("leftgame").contains(pname)){
+				event.allow();
+				removeList(player,"leftgame");
+				return;
+			}
 			else{
 				event.disallow(Result.KICK_OTHER, "Game in progress");
 				return;
+			}
+		}
+		else {
+			Bukkit.getServer().broadcastMessage("Round is starting");
+			if(Bukkit.getServer().getOnlinePlayers().length == 1){
+				Bukkit.getServer().broadcastMessage("Round is starting");
+				plugin.countdown(player);
 			}
 		}
 	}
@@ -243,6 +256,10 @@ public class HungerListener implements Listener {
 
 		}
 		
+	}
+	@EventHandler
+	public void changeMOTD(ServerListPingEvent event){
+		event.setMotd(plugin.getConfig().getString("config"));
 	}
 	
 }

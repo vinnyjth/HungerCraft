@@ -15,6 +15,8 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	@SuppressWarnings("unused")
@@ -24,6 +26,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public static PluginDescriptionFile plugdes;
 	public HungerListener hungerlistener = new HungerListener(this);
 	public RandomTeleport randomteleport = new RandomTeleport(this);
+	private int id;
 	
 	public Location getLocation(Player p, int i){
 		int x = cfg.getInt(p.getWorld().getName() + "." + i + "." + "X");
@@ -42,13 +45,17 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         cfg.addDefault("isactive", false);
         cfg.addDefault("usespawnpoints", false);
         cfg.addDefault("spawnradius", 30);
-        cfg.addDefault("arenasize", 50);
+        cfg.addDefault("arenasize", 3000);
         cfg.addDefault("borderkill", true);
         cfg.addDefault("participants", null);
         cfg.addDefault("leftgame", null);
         cfg.addDefault("dead", null);
+        cfg.addDefault("world", "world");
+        cfg.addDefault("motd", "Game inactive");
+        cfg.addDefault("timebetweenrounds", 300);
         getConfig().options().copyDefaults(true);
         saveConfig();
+        stopGameEndofRound();
         List<World> worlds = Bukkit.getServer().getWorlds();
         for (World world : worlds){
         	world.setSpawnLocation(0, 64, 0);
@@ -74,12 +81,34 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			
 		}
 	}
+	public void countdown(final Player player){
+		this.id = plugin.getServer().getScheduler().scheduleAsyncRepeatingTask(plugin, new Runnable() {
+			int times = 300/10;
+			int timebetweenrounds = cfg.getInt("timebetweenrounds");
+
+		    public void run() {
+		    	Bukkit.getServer().broadcastMessage("Round starts in ");
+		    	timebetweenrounds = timebetweenrounds - 10;
+		    	times --;
+		    	if (times == 0){
+		    		startGame(player);
+		    		Bukkit.getScheduler().cancelTask(id);
+		    	}
+		    	
+
+		    }
+		}, 1L, 20L);
+	}
 	public void setParticipants(){
 		Player[] players = Bukkit.getOnlinePlayers();
 		List<String> participants = new ArrayList<String>();
 	    for (Player player : players){
 			String parname = player.getName();
 			participants.add(parname);
+			player.setHealth(20);
+			player.getInventory().clear();
+			player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 1200, 10));
+			
 	    }	
 	    cfg = getConfig();
 	    cfg.set("participants", participants);
@@ -94,6 +123,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	    World world = sender.getWorld();
 	    world.setTime(0);
 	    setParticipants();
+	    setMOTD("Game in progress");
 	}
 	public void clearList(String list){
 		cfg = getConfig();
@@ -126,6 +156,10 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         }
 		
 	}
+	public void setMOTD(String message){
+		cfg.set("motd", message);
+		saveConfig();
+	}
 
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args){
 		Player player = (Player) sender;
@@ -157,7 +191,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		if(cmd.getName().equalsIgnoreCase("stopgame")){
 			if(player.isOp()){
 				if(getConfig().getBoolean("isactive")){
-					stopGame(player);
+					stopGameEndofRound();
 					player.sendMessage("Game has been stopped");
 					return true;
 				}
@@ -171,7 +205,23 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				return true;
 			}
 		}
+		if(cmd.getName().equalsIgnoreCase("setborder")){
+			if(args[0] == null){
+				return false;
+			}
+			int bordersize = Integer.parseInt(args[0]);
+			getConfig().set("arenasize", bordersize);
+			saveConfig();
+			reloadConfig();
+			player.sendMessage("Border has been set");
+			return true;
+		}
 		return false;
+	}
+
+	public void log(String string) {
+		// TODO Auto-generated method stub
+		
 	}
 
 }
