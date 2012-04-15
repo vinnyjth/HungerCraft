@@ -1,18 +1,27 @@
 package me.dr_madman.hungercraft;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Random;
 import java.util.logging.Logger;
 
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.WorldCreator;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
@@ -27,7 +36,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public HungerListener hungerlistener = new HungerListener(this);
 	public RandomTeleport randomteleport = new RandomTeleport(this);
 	private int id;
-	
+	public HashMap<Player, String> chosenkit = new HashMap<Player, String>();
 	public Location getLocation(Player p, int i){
 		int x = cfg.getInt(p.getWorld().getName() + "." + i + "." + "X");
         int y = cfg.getInt(p.getWorld().getName() + "." + i + "." + "Y");
@@ -53,6 +62,12 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         cfg.addDefault("world", "world");
         cfg.addDefault("motd", "Game inactive");
         cfg.addDefault("timebetweenrounds", 300);
+        try {
+			initKits();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
         getConfig().options().copyDefaults(true);
         saveConfig();
         stopGameEndofRound();
@@ -62,6 +77,9 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         	world.setPVP(false);
         	
         }
+        if(!checkForWorld("world2")){
+        	generateWorld();
+        }
         
         
         
@@ -70,6 +88,68 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public void onDisable() {
 		System.out.println(plugdes.getName() + " is now disabled.");
     }
+	public boolean checkForWorld(String world){
+		List<World> worlds = getServer().getWorlds();
+		World worldname = getServer().getWorld(world);
+		if (worlds.contains(worldname)){
+			return true;
+		}
+		else{
+			return false;
+		}
+		
+	}
+	public void generateWorld(){
+		WorldCreator newworld = new WorldCreator("world2");
+		Random randomGenerator = new Random();
+		Long seed = randomGenerator.nextLong();
+		newworld.copy(getServer().getWorld("world"));
+		newworld.seed(seed);
+		getServer().createWorld(newworld);
+	}
+	public static void save(Object obj,String path) throws Exception
+	{
+		ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(path));
+		oos.writeObject(obj);
+		oos.flush();
+		oos.close();
+	}
+	public List<String> listKits(){
+		File dir1 = getDataFolder();
+		File dir = new File(dir1, "Classes");
+
+		String[] children = dir.list();
+		List<String> classes = new ArrayList<String>();
+		for (String i : children){
+			String j = i.substring(0, i.length()-4);
+			classes.add(j);
+		}
+		return classes;
+	}
+	public static Object load(String path) throws Exception
+	{
+		ObjectInputStream ois = new ObjectInputStream(new FileInputStream(path));
+		Object result = ois.readObject();
+		ois.close();
+		return result;
+	}
+	public void initKits() throws Exception{
+		File data = new File(getDataFolder(), "Classes");
+		HashMap<Integer, Integer> Archer = new HashMap<Integer, Integer>();
+	    Archer.put( 262, 16);
+	    Archer.put( 261, 1);
+	    Archer.put( 345, 1);
+	    save(Archer, data + "//archer.txt");
+	    HashMap<Integer, Integer> Baker = new HashMap<Integer, Integer>();
+	    Baker.put( 297, 4);
+	    Baker.put( 345, 1);
+	    save(Baker, data + "//baker.txt");
+	    HashMap<Integer, Integer> Miner = new HashMap<Integer, Integer>();
+	    Miner.put( 274, 1);
+	    Miner.put( 345, 1);
+	    save(Miner, data + "//miner.txt");
+		
+	}
 	
 	public static JavaPlugin getPlugin(){
 		return plugin;
@@ -77,27 +157,39 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public void randomTeleport(){
 		Player[] players = Bukkit.getServer().getOnlinePlayers();
 		for (Player player : players){
-			player.teleport(randomteleport.randomLocation(player.getWorld()));
+			Bukkit.getServer().broadcastMessage("Teleporting players");
+			player.teleport(randomteleport.randomLocation(getServer().getWorld("world2")));
 			
 		}
 	}
 	public void countdown(final Player player){
-		this.id = plugin.getServer().getScheduler().scheduleAsyncRepeatingTask(plugin, new Runnable() {
-			int times = 300/10;
-			int timebetweenrounds = cfg.getInt("timebetweenrounds");
+		this.id = getServer().getScheduler().scheduleAsyncRepeatingTask(this, new Runnable() {
+			int timebetweenrounds = cfg.getInt("timebetweenrounds")+10;
 
 		    public void run() {
-		    	Bukkit.getServer().broadcastMessage("Round starts in ");
-		    	timebetweenrounds = timebetweenrounds - 10;
-		    	times --;
-		    	if (times == 0){
-		    		startGame(player);
+		    	if(Bukkit.getServer().getOnlinePlayers().length == 1){
+		    		Bukkit.getScheduler().cancelTask(id);
+		    		Bukkit.getServer().broadcastMessage("Too few players to start :(");
+		    		stopGameEndofRound();
+		    	}
+		    	if(getConfig().getBoolean("isactive")){
 		    		Bukkit.getScheduler().cancelTask(id);
 		    	}
+		    	else {
+		    		timebetweenrounds = timebetweenrounds - 10;
+		    		Bukkit.getServer().broadcastMessage("Round starts in " + timebetweenrounds + " seconds");
+		    		cfg.set("motd", "Round starts in " + timebetweenrounds + " seconds");
+		    		saveConfig();
+		    		if (timebetweenrounds == 0){
+			    		startGame(player);
+			    		Bukkit.getScheduler().cancelTask(id);
+			    	}
+		    	}
+		    	
 		    	
 
 		    }
-		}, 1L, 20L);
+		}, 1L, 200L);
 	}
 	public void setParticipants(){
 		Player[] players = Bukkit.getOnlinePlayers();
@@ -115,6 +207,9 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	    saveConfig();
 	}
 	public void startGame(Player sender){
+		if(Bukkit.getServer().getOnlinePlayers().length == 1){
+			Bukkit.getServer().broadcastMessage("Too few players to start :(");
+		}
 		cfg = getConfig();
 		cfg.set("isactive", true);
 		saveConfig();
@@ -123,12 +218,38 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	    World world = sender.getWorld();
 	    world.setTime(0);
 	    setParticipants();
+	    Bukkit.getServer().broadcastMessage("The Hunger Games have Begun!");
 	    setMOTD("Game in progress");
+	    for(Player player : Bukkit.getServer().getOnlinePlayers()){
+	    	if (chosenkit.containsKey(player)){
+	    		String i = chosenkit.get(player);
+	    		try {
+					getKit(player, i);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+	    	}
+	    	
+	    }
 	}
 	public void clearList(String list){
 		cfg = getConfig();
 		cfg.set(list, null);
 		saveConfig();
+		
+	}
+	public void getKit(Player player, String kit) throws Exception{
+		String kitlower = kit.toLowerCase();
+		File data = new File(getDataFolder(), "Classes//");
+		@SuppressWarnings("unchecked")
+		HashMap<Integer, Integer> list = (HashMap<Integer, Integer>) load(data + kitlower + ".txt");
+		for(Integer i : list.keySet()){
+			Integer j = list.get(i);
+			player.sendMessage("adding" + i.toString() + j.toString());
+			player.getInventory().addItem(new ItemStack(i, j));
+			
+		}
 		
 	}
 	public void stopGame(Player sender){
@@ -144,6 +265,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public void stopGameEndofRound(){
 		cfg = getConfig();
 		cfg.set("isactive", false);
+		cfg.set("motd", "Game has not started yet");
 		clearList("participants");
 		clearList("leftgame");
 		clearList("dead");
@@ -156,6 +278,15 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         }
 		
 	}
+	public void addKit(String name, Integer item, Integer amount) throws Exception{
+		HashMap<Integer, Integer> list = new HashMap<Integer, Integer>();
+		list.put(item, amount);
+		save(list, name + ".txt");
+		
+	}
+	public void addKitItem(String name, int item, int amount){
+		
+	}
 	public void setMOTD(String message){
 		cfg.set("motd", message);
 		saveConfig();
@@ -165,16 +296,30 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		Player player = (Player) sender;
 		if (cmd.getName().equalsIgnoreCase("teleport")){
 			
-			Location loc = getLocation(player, 0);
-			player.teleport(loc.add(new Location(player.getWorld(), 0, 1, 0)));
-			return true;
+			player.teleport(getServer().getWorld("world2").getSpawnLocation());
 				
 		}
 		if(cmd.getName().equalsIgnoreCase("startgame")){
 			if(player.isOp()){
 				if(!getConfig().getBoolean("isactive")){
+					countdown(player);
+					return true;
+				}
+				else {
+					player.sendMessage("Game is already started!");
+				}
+
+
+			}
+			else {
+				player.sendMessage("You must be an OP to start the game!");
+				return true;
+			}
+		}
+		if(cmd.getName().equalsIgnoreCase("forcestart")){
+			if(player.isOp()){
+				if(!getConfig().getBoolean("isactive")){
 					startGame(player);
-					Bukkit.getServer().broadcastMessage("The Hunger Games have Begun!");
 					return true;
 				}
 				else {
@@ -216,6 +361,66 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			player.sendMessage("Border has been set");
 			return true;
 		}
+		if (cmd.getName().equalsIgnoreCase("kit")){
+			if(args[0] == null){
+				player.sendMessage("You need to include a kit");
+				return true;
+					
+			}
+			if (getConfig().getBoolean("isactive")){
+				player.sendMessage("Game is in progress!");
+				return true;
+			}
+			
+			if(args[0] == "list"){
+				player.sendMessage("These are the kits" + listKits());
+				return true;
+			}
+			
+			
+			
+			if(listKits().contains(args[0])){
+				try {
+					chosenkit.put(player, args[0]);
+					player.sendMessage(args[0]+ "chosen");
+					return true;
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					player.sendMessage(args[0] + "was invalid!");
+					return false;
+				}
+			}
+			else {
+				player.sendMessage(args[0] + " is not a kit");
+				player.sendMessage("These are the kits" + listKits());
+				return true;
+			}
+			
+		}
+		if (cmd.getName().equalsIgnoreCase("addkit")){
+			if(!player.isOp()){
+				player.sendMessage("You must be Op to add a kit");
+				return true;
+			}
+			else{
+				if ((args[0] instanceof String) || args[0] == null || Integer.getInteger(args[1]) instanceof Integer || args[1] == null || args[2] == null){
+					player.sendMessage("You need to insert the right commands!");
+				}
+				else {
+					try {
+						addKit(args[0], Integer.getInteger(args[1]), Integer.getInteger(args[2]));
+						player.sendMessage(args[0] + " was added");
+						return true;
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					return false;
+				}
+			}
+		}
+			
 		return false;
 	}
 

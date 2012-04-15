@@ -1,6 +1,7 @@
 package me.dr_madman.hungercraft;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.bukkit.Bukkit;
@@ -52,13 +53,15 @@ public class HungerListener implements Listener {
 		return activestate;
 	}
 	public void setupNewGame(){
-		List<World> worlds = Bukkit.getServer().getWorlds();
 		for(Player player :Bukkit.getServer().getOnlinePlayers()){
 			player.kickPlayer("Server restarting(nice job btw)");
 		}
-		World world = worlds.get(0);
+		World world = Bukkit.getServer().getWorld("world2");
+		deleteWorld(world);
+	}
+	public void deleteWorld(World world){
 		File worldFile = world.getWorldFolder();
-		if(plugin.getServer().unloadWorld("world", true)){
+		if(plugin.getServer().unloadWorld(world, false)){
 			Bukkit.getServer().broadcastMessage("World Unloaded");
 			deleteDir(worldFile);
 		}
@@ -76,8 +79,10 @@ public class HungerListener implements Listener {
 		}
 
     // The directory is now empty so delete it
+	Bukkit.getServer().broadcastMessage("World" + dir + "has been deleted");
     return dir.delete();
-	}
+    
+    }
 	
 
 
@@ -141,6 +146,16 @@ public class HungerListener implements Listener {
 			}, 1200L);
 		}
 	}
+	public void displayMessageDelayed(final Player player, final String string){
+			plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
+
+				public void run() {
+					player.sendMessage(string);
+					}
+		        	
+			}, 20);
+		
+	}
 	public void winMessage(Player player){
 		String pname = player.getName();
     	final String[] messagelist = {(ChatColor.GOLD + "We have our winner!"),(ChatColor.GOLD + "And the winner is:"),(ChatColor.GOLD + pname + "!!!11!!1!1"),(pname + "Prepare to get kicked")};
@@ -150,7 +165,7 @@ public class HungerListener implements Listener {
 		    public void run() {
 		    	Bukkit.getServer().broadcastMessage(messagelist[times]);
 		    	times ++;
-		    	if (times == 3){
+		    	if (times == 4){
 		    		plugin.stopGameEndofRound();
 		    		setupNewGame();
 		    		Bukkit.getScheduler().cancelTask(id);
@@ -159,6 +174,18 @@ public class HungerListener implements Listener {
 
 		    }
 		}, 1L, 20L);
+	}
+	public List<String> listKits(){
+		File dir1 = plugin.getDataFolder();
+		File dir = new File(dir1, "Classes");
+
+		String[] children = dir.list();
+		List<String> classes = new ArrayList<String>();
+		for (String i : children){
+			String j = i.substring(0, i.length()-4);
+			classes.add(j);
+		}
+		return classes;
 	}
 	@EventHandler
 	public void blockInteract(PlayerInteractEvent event) throws Exception{
@@ -233,7 +260,8 @@ public class HungerListener implements Listener {
 			}
 		}
 		else {
-			Bukkit.getServer().broadcastMessage("Round is starting");
+			player.teleport(plugin.getServer().getWorld("world2").getSpawnLocation());
+			displayMessageDelayed(player, "Choose a class with /kit ");
 			if(Bukkit.getServer().getOnlinePlayers().length == 1){
 				Bukkit.getServer().broadcastMessage("Round is starting");
 				plugin.countdown(player);
@@ -259,7 +287,7 @@ public class HungerListener implements Listener {
 	}
 	@EventHandler
 	public void changeMOTD(ServerListPingEvent event){
-		event.setMotd(plugin.getConfig().getString("config"));
+		event.setMotd(plugin.getConfig().getString("motd"));
 	}
 	
 }

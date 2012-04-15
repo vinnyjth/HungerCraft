@@ -1,5 +1,6 @@
 package me.dr_madman.hungercraft;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -21,12 +22,15 @@ public class RandomTeleport {
 		int xmax = this.plugin.getConfig().getInt("spawnradius");
 		int zmin = -this.plugin.getConfig().getInt("spawnradius");
 		int zmax = this.plugin.getConfig().getInt("spawnradius");
+		
+		Bukkit.getServer().broadcastMessage("Getting values");
 
 		int xrand = 0;
 		int zrand = 0;
 		int y = -1;
 
 		do {
+			Bukkit.getServer().broadcastMessage("Running do loop");
 			xrand = xmin + (int) ( Math.random()*(xmax - xmin) + 0.5 );
 			zrand = zmin + (int) ( Math.random()*(zmax - zmin) + 0.5 );
 			y = getValidHighestBlock(world, xrand,zrand);
@@ -40,6 +44,8 @@ public class RandomTeleport {
 				);
 }
 	public int getValidHighestBlock(World world, int x, int z) {
+		world.loadChunk(x, z);
+		Bukkit.getServer().broadcastMessage("Getting chunk");
 		world.getChunkAt(new Location(world, x, 0, z)).load();
 
 		int y = world.getHighestBlockYAt(x, z);
