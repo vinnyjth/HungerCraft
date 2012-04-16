@@ -3,12 +3,13 @@ package me.dr_madman.hungercraft;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
+
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -29,7 +30,8 @@ public class HungerListener implements Listener {
 	private FileConfiguration cfg;
 	private int id;
 	public HungerListener(HungerCraft instance) {plugin = instance;}
-	
+
+	Logger log;
 	public void addLocation(Location loc, int i){
 		cfg = plugin.getConfig();
 		cfg.set(loc.getWorld().getName() + "." + i + "." + "X", loc.getBlockX());
@@ -56,33 +58,53 @@ public class HungerListener implements Listener {
 		for(Player player :Bukkit.getServer().getOnlinePlayers()){
 			player.kickPlayer("Server restarting(nice job btw)");
 		}
-		World world = Bukkit.getServer().getWorld("world2");
-		deleteWorld(world);
+		cfg.set("setup", true);
+		cfg.set("motd", "Setting up next game");	
+		plugin.saveConfig();
+		deleteWorld();
+		plugin.generateWorld();
+    	plugin.stopGameEndofRound();
 	}
-	public void deleteWorld(World world){
-		File worldFile = world.getWorldFolder();
-		if(plugin.getServer().unloadWorld(world, false)){
-			Bukkit.getServer().broadcastMessage("World Unloaded");
-			deleteDir(worldFile);
-		}
-	}
-	public static boolean deleteDir(File dir) {
-		if (dir.isDirectory()) {
-			String[] children = dir.list();
-			for (int i=0; i<children.length; i++) {
-				boolean success = deleteDir(new File(dir, children[i]));
-				if (!success) {
-					Bukkit.getServer().broadcastMessage("Failed");
-					return false;
-				}
-			}	
-		}
+		
 
-    // The directory is now empty so delete it
-	Bukkit.getServer().broadcastMessage("World" + dir + "has been deleted");
-    return dir.delete();
     
-    }
+
+   public boolean deleteWorld(){
+	   String worldname = "world2";
+	   if (Bukkit.getServer().unloadWorld(worldname, false)) {
+           Bukkit.getServer().broadcastMessage("***********");
+           Bukkit.getServer().broadcastMessage("Unloaded World");
+           Bukkit.getServer().broadcastMessage("***********");
+           File world = new File(worldname);
+           Bukkit.getServer().broadcastMessage("Deleting World");
+           if (this.deleteDir(world)) {
+        	   		Bukkit.getServer().broadcastMessage("World Deleted");
+           }
+           else {
+        	   		Bukkit.getServer().broadcastMessage("Error Deleting World");
+           }
+           Bukkit.getServer().broadcastMessage("***********");
+   }
+  
+   else {
+	   Bukkit.getServer().broadcastMessage("Failed To Unload World");
+   }
+  
+   return true;
+   }
+   public boolean deleteDir(File dir) {
+       if (dir.isDirectory()) {
+               String[] children = dir.list();
+               for (String element : children) {
+            	   Bukkit.getServer().broadcastMessage(" - deleting " + element);
+                       boolean success = this.deleteDir(new File(dir, element));
+                       if (!success) {
+                               return false;
+                       }
+               }
+       }
+       return dir.delete();
+   }
 	
 
 
@@ -159,14 +181,13 @@ public class HungerListener implements Listener {
 	public void winMessage(Player player){
 		String pname = player.getName();
     	final String[] messagelist = {(ChatColor.GOLD + "We have our winner!"),(ChatColor.GOLD + "And the winner is:"),(ChatColor.GOLD + pname + "!!!11!!1!1"),(pname + "Prepare to get kicked")};
-		this.id = plugin.getServer().getScheduler().scheduleAsyncRepeatingTask(plugin, new Runnable() {
+		this.id = plugin.getServer().getScheduler().scheduleSyncRepeatingTask(plugin, new Runnable() {
 			int times = 0;
 
 		    public void run() {
 		    	Bukkit.getServer().broadcastMessage(messagelist[times]);
 		    	times ++;
 		    	if (times == 4){
-		    		plugin.stopGameEndofRound();
 		    		setupNewGame();
 		    		Bukkit.getScheduler().cancelTask(id);
 		    	}
@@ -210,9 +231,9 @@ public class HungerListener implements Listener {
 		Player player = event.getPlayer();
 		int distancefromspawn = (plugin.getConfig().getInt("arenasize"))*(plugin.getConfig().getInt("arenasize"));
 		if(checkActive()){
-			Double distance = player.getLocation().distanceSquared(new Location(player.getWorld(), 0, 64, 0));
+			Double distance = player.getLocation().distanceSquared(Bukkit.getServer().getWorld("world2").getSpawnLocation());
 			int distanceint = distance.intValue();
-			if (distanceint > distancefromspawn - 1000){
+			if (distanceint > distancefromspawn - 3000){
 				player.sendMessage("You are approaching the force field");
 			}
 			if(distance > distancefromspawn){
@@ -235,6 +256,8 @@ public class HungerListener implements Listener {
 			player.kickPlayer(kickmessage);
 			removeList(player, "participants");
 			addList(player, "dead");
+			Bukkit.getServer().broadcastMessage((Bukkit.getServer().getOnlinePlayers().length) + " players remain");
+			plugin.getConfig().set("motd", (Bukkit.getServer().getOnlinePlayers().length) + " players remain");
 
 		}
 	}
@@ -243,6 +266,10 @@ public class HungerListener implements Listener {
 		cfg = plugin.getConfig();
 		Player player = event.getPlayer();
 		String pname = player.getName();
+		if(cfg.getBoolean("setup")){
+			event.disallow(Result.KICK_OTHER, "Setting up next game");
+			return;
+		}
 		if(checkActive()){
 			if(cfg.getStringList("dead").contains(pname)){
 					event.disallow(Result.KICK_OTHER, "You have died, wait for the next game");
@@ -252,6 +279,7 @@ public class HungerListener implements Listener {
 			if(cfg.getStringList("leftgame").contains(pname)){
 				event.allow();
 				removeList(player,"leftgame");
+				addList(player, "participants");
 				return;
 			}
 			else{
@@ -275,11 +303,14 @@ public class HungerListener implements Listener {
 			if(checkList(player, "dead")){
 				return;
 			}
-			removeList(player, "participants");
-			addList(player, "leftgame");
-			if (checkList(player, "leftgame")){
-				checkActivePlayer(player);
+			else{
+				removeList(player, "participants");
+				addList(player, "leftgame");
+				if (checkList(player, "leftgame")){
+					checkActivePlayer(player);
+				}
 			}
+			
 			checkWinner();
 
 		}

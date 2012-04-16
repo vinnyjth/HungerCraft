@@ -35,7 +35,7 @@ commands:
    kit:
       description: This is a demo command.
       usage: /<command> [player]
-      permission: hc.kit
+      permission: 
       permission-message: You don't have <permission>
    addkit:
       description: This is a demo command.

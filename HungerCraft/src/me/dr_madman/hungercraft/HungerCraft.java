@@ -16,6 +16,9 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
+import org.bukkit.WorldType;
+import org.bukkit.World.Environment;
+import org.bukkit.block.Biome;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -33,8 +36,11 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public static FileConfiguration cfg;
 	public static HungerCraft plugin;
 	public static PluginDescriptionFile plugdes;
+	public static CompassTracker compasstracker = new CompassTracker();
 	public HungerListener hungerlistener = new HungerListener(this);
 	public RandomTeleport randomteleport = new RandomTeleport(this);
+	public WorldManagement worldmanagement = new WorldManagement(this);
+	public CompassTrackerUpdater compasstrackerupdater = new CompassTrackerUpdater(this);
 	private int id;
 	public HashMap<Player, String> chosenkit = new HashMap<Player, String>();
 	public Location getLocation(Player p, int i){
@@ -50,11 +56,13 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		plugdes = getDescription();
 		System.out.println("PLUGDESC NAME: "+plugdes.getName());
         getServer().getPluginManager().registerEvents(hungerlistener, this);
+        getServer().getPluginManager().registerEvents(compasstracker, this);
+        checkFolder();
         cfg = getConfig();
         cfg.addDefault("isactive", false);
         cfg.addDefault("usespawnpoints", false);
         cfg.addDefault("spawnradius", 30);
-        cfg.addDefault("arenasize", 3000);
+        cfg.addDefault("arenasize", 500);
         cfg.addDefault("borderkill", true);
         cfg.addDefault("participants", null);
         cfg.addDefault("leftgame", null);
@@ -62,6 +70,8 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         cfg.addDefault("world", "world");
         cfg.addDefault("motd", "Game inactive");
         cfg.addDefault("timebetweenrounds", 300);
+        cfg.addDefault("setup", false);
+        cfg.addDefault("seeds", null);
         try {
 			initKits();
 		} catch (Exception e) {
@@ -73,7 +83,6 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         stopGameEndofRound();
         List<World> worlds = Bukkit.getServer().getWorlds();
         for (World world : worlds){
-        	world.setSpawnLocation(0, 64, 0);
         	world.setPVP(false);
         	
         }
@@ -87,6 +96,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	@Override
 	public void onDisable() {
 		System.out.println(plugdes.getName() + " is now disabled.");
+		CompassTrackerUpdater.stop();
     }
 	public boolean checkForWorld(String world){
 		List<World> worlds = getServer().getWorlds();
@@ -99,13 +109,13 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		}
 		
 	}
-	public void generateWorld(){
-		WorldCreator newworld = new WorldCreator("world2");
-		Random randomGenerator = new Random();
-		Long seed = randomGenerator.nextLong();
-		newworld.copy(getServer().getWorld("world"));
-		newworld.seed(seed);
-		getServer().createWorld(newworld);
+	public void checkFolder(){
+		File dir1 = getDataFolder();
+		File dir = new File(dir1, "Classes");
+		boolean exists = dir.exists();
+		if(!exists){
+			dir.mkdir();
+		}
 	}
 	public static void save(Object obj,String path) throws Exception
 	{
@@ -133,21 +143,35 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		ois.close();
 		return result;
 	}
+	public void generateWorld(){
+		WorldCreator newworld = new WorldCreator("world2");
+		Random randomGenerator = new Random();
+		Long seed = randomGenerator.nextLong();
+		newworld.type(WorldType.NORMAL);
+		newworld.environment(Environment.NORMAL);
+		newworld.generateStructures(true);
+		newworld.seed(seed);
+		Bukkit.getServer().createWorld(newworld);
+		Bukkit.getServer().broadcastMessage("Regening chunks");
+		regenChunks(Bukkit.getServer().getWorld("world2"));
+		Bukkit.getServer().broadcastMessage("Chunks regened");
+		
+	}
 	public void initKits() throws Exception{
 		File data = new File(getDataFolder(), "Classes");
 		HashMap<Integer, Integer> Archer = new HashMap<Integer, Integer>();
 	    Archer.put( 262, 16);
 	    Archer.put( 261, 1);
 	    Archer.put( 345, 1);
-	    save(Archer, data + "//archer.txt");
+	    save(Archer, data + "/archer.txt");
 	    HashMap<Integer, Integer> Baker = new HashMap<Integer, Integer>();
 	    Baker.put( 297, 4);
 	    Baker.put( 345, 1);
-	    save(Baker, data + "//baker.txt");
+	    save(Baker, data + "/baker.txt");
 	    HashMap<Integer, Integer> Miner = new HashMap<Integer, Integer>();
 	    Miner.put( 274, 1);
 	    Miner.put( 345, 1);
-	    save(Miner, data + "//miner.txt");
+	    save(Miner, data + "/miner.txt");
 		
 	}
 	
@@ -158,12 +182,12 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		Player[] players = Bukkit.getServer().getOnlinePlayers();
 		for (Player player : players){
 			Bukkit.getServer().broadcastMessage("Teleporting players");
-			player.teleport(randomteleport.randomLocation(getServer().getWorld("world2")));
+			player.teleport(getServer().getWorld("world2").getSpawnLocation());
 			
 		}
 	}
 	public void countdown(final Player player){
-		this.id = getServer().getScheduler().scheduleAsyncRepeatingTask(this, new Runnable() {
+		this.id = getServer().getScheduler().scheduleSyncRepeatingTask(this, new Runnable() {
 			int timebetweenrounds = cfg.getInt("timebetweenrounds")+10;
 
 		    public void run() {
@@ -198,6 +222,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			String parname = player.getName();
 			participants.add(parname);
 			player.setHealth(20);
+			player.setFoodLevel(20);
 			player.getInventory().clear();
 			player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 1200, 10));
 			
@@ -239,11 +264,25 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		saveConfig();
 		
 	}
+	
+	public boolean checkForWater(World world){
+		Location spawn = world.getSpawnLocation();
+		int x = spawn.getBlockX();
+		int y = spawn.getBlockY();
+		Biome spawnbiome = world.getBiome(x, y);
+		if (spawnbiome == Biome.OCEAN){
+			return false;
+		}
+		else{
+			return true;
+		}
+		
+	}
 	public void getKit(Player player, String kit) throws Exception{
 		String kitlower = kit.toLowerCase();
-		File data = new File(getDataFolder(), "Classes//");
+		File data = new File(getDataFolder(), "Classes");
 		@SuppressWarnings("unchecked")
-		HashMap<Integer, Integer> list = (HashMap<Integer, Integer>) load(data + kitlower + ".txt");
+		HashMap<Integer, Integer> list = (HashMap<Integer, Integer>) load(data + "/" + kitlower + ".txt");
 		for(Integer i : list.keySet()){
 			Integer j = list.get(i);
 			player.sendMessage("adding" + i.toString() + j.toString());
@@ -251,6 +290,19 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			
 		}
 		
+	}
+    public void regenChunks(World world){
+    	int borderSize = cfg.getInt("arenasize");
+    	borderSize = (borderSize/16) + 10;
+    	for(int x = -borderSize; x != borderSize; x++){
+    		Bukkit.getServer().broadcastMessage(x + "x");
+    		for(int y = -borderSize; y != borderSize; y++){
+    			Bukkit.getServer().broadcastMessage(y + "y");
+    			world.loadChunk(x, y);
+    			world.regenerateChunk(x, y);
+    		}
+    		
+    	}
 	}
 	public void stopGame(Player sender){
 		cfg = getConfig();
@@ -260,10 +312,10 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		clearList("dead");
 		saveConfig();
 		sender.getWorld().setPVP(false);
-		
 	}
 	public void stopGameEndofRound(){
 		cfg = getConfig();
+		cfg.set("setup", false);
 		cfg.set("isactive", false);
 		cfg.set("motd", "Game has not started yet");
 		clearList("participants");
@@ -392,7 +444,6 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				}
 			}
 			else {
-				player.sendMessage(args[0] + " is not a kit");
 				player.sendMessage("These are the kits" + listKits());
 				return true;
 			}
