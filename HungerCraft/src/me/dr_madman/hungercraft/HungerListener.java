@@ -1,6 +1,10 @@
 package me.dr_madman.hungercraft;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -10,8 +14,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -61,14 +67,53 @@ public class HungerListener implements Listener {
 		cfg.set("setup", true);
 		cfg.set("motd", "Setting up next game");	
 		plugin.saveConfig();
-		deleteWorld();
+		for (Entity entity: Bukkit.getServer().getWorld("world2").getEntities()){
+			entity.remove();
+		Bukkit.getServer().broadcastMessage("deleting world");
+		 Bukkit.getServer().broadcastMessage(Bukkit.getServer().getWorld("world2").getEntities() + "are there any lef?");
+		 Bukkit.getServer().unloadWorld(Bukkit.getServer().getWorld("world2"), false);
+		deleteWorld("world2");
 		plugin.generateWorld();
-    	plugin.stopGameEndofRound();
+		plugin.stopGameEndofRound();
+		}
+					  
+					   
+
 	}
 		
 
-    
+	public void deleteWorld(String world){
+		String line = "rm -rf " + world;
+		try {
+			Process child = Runtime.getRuntime().exec(line);
+			BufferedReader stdInput = new BufferedReader(new 
+					InputStreamReader(child.getInputStream()));
 
+	        BufferedReader stdError = new BufferedReader(new 
+	                 InputStreamReader(child.getErrorStream()));
+
+	         // read the output from the command
+	         System.out.println("Here is the standard output of the command:\n");
+	         String s;
+			while ((s = stdInput.readLine()) != null) {
+	             System.out.println(s);
+	         }
+	            
+	         // read any errors from the attempted command
+	         System.out.println("Here is the standard error of the command (if any):\n");
+	            while ((s = stdError.readLine()) != null) {
+	         System.out.println(s);
+	         }
+	         System.exit(0);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		
+	}
+
+/**
    public boolean deleteWorld(){
 	   String worldname = "world2";
 	   if (Bukkit.getServer().unloadWorld(worldname, false)) {
@@ -84,15 +129,17 @@ public class HungerListener implements Listener {
         	   		Bukkit.getServer().broadcastMessage("Error Deleting World");
            }
            Bukkit.getServer().broadcastMessage("***********");
-   }
-  
+
    else {
 	   Bukkit.getServer().broadcastMessage("Failed To Unload World");
-   }
+   	}
   
    return true;
    }
+     }
+  */
    public boolean deleteDir(File dir) {
+	   Bukkit.getServer().unloadWorld((Bukkit.getServer().getWorld("world2")), false);
        if (dir.isDirectory()) {
                String[] children = dir.list();
                for (String element : children) {
@@ -127,7 +174,7 @@ public class HungerListener implements Listener {
 		return false;
 	}
 	public void checkWinner(){
-		if(plugin.getConfig().getStringList("participants").size() < 2){
+		if(plugin.getConfig().getStringList("participants").size() == 1){
 			List<String> winners = plugin.getConfig().getStringList("participants");
 			String winner = winners.get(0);
 			Player winplayer = Bukkit.getPlayer(winner);
@@ -208,6 +255,7 @@ public class HungerListener implements Listener {
 		}
 		return classes;
 	}
+	
 	@EventHandler
 	public void blockInteract(PlayerInteractEvent event) throws Exception{
 		Player player = event.getPlayer();
@@ -256,8 +304,8 @@ public class HungerListener implements Listener {
 			player.kickPlayer(kickmessage);
 			removeList(player, "participants");
 			addList(player, "dead");
-			Bukkit.getServer().broadcastMessage((Bukkit.getServer().getOnlinePlayers().length) + " players remain");
-			plugin.getConfig().set("motd", (Bukkit.getServer().getOnlinePlayers().length) + " players remain");
+			Bukkit.getServer().broadcastMessage(plugin.getConfig().getStringList("participants").size() + " players remain");
+			plugin.getConfig().set("motd", (plugin.getConfig().getStringList("participants").size()  + " players remain"));
 
 		}
 	}
@@ -281,6 +329,11 @@ public class HungerListener implements Listener {
 				removeList(player,"leftgame");
 				addList(player, "participants");
 				return;
+			}
+			if(player.isOp()){
+				event.allow();
+				removeList(player,"leftgame");
+				addList(player, "participants");
 			}
 			else{
 				event.disallow(Result.KICK_OTHER, "Game in progress");

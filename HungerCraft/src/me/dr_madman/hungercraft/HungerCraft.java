@@ -13,6 +13,8 @@ import java.util.logging.Logger;
 
 
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.WorldCreator;
@@ -80,7 +82,6 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		}
         getConfig().options().copyDefaults(true);
         saveConfig();
-        stopGameEndofRound();
         List<World> worlds = Bukkit.getServer().getWorlds();
         for (World world : worlds){
         	world.setPVP(false);
@@ -89,6 +90,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         if(!checkForWorld("world2")){
         	generateWorld();
         }
+        stopGameEndofRound();
         
         
         
@@ -152,11 +154,10 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		newworld.generateStructures(true);
 		newworld.seed(seed);
 		Bukkit.getServer().createWorld(newworld);
-		Bukkit.getServer().broadcastMessage("Regening chunks");
-		regenChunks(Bukkit.getServer().getWorld("world2"));
-		Bukkit.getServer().broadcastMessage("Chunks regened");
+		Bukkit.getServer().broadcastMessage("World created!");
 		
 	}
+	
 	public void initKits() throws Exception{
 		File data = new File(getDataFolder(), "Classes");
 		HashMap<Integer, Integer> Archer = new HashMap<Integer, Integer>();
@@ -297,9 +298,11 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
     	for(int x = -borderSize; x != borderSize; x++){
     		Bukkit.getServer().broadcastMessage(x + "x");
     		for(int y = -borderSize; y != borderSize; y++){
-    			Bukkit.getServer().broadcastMessage(y + "y");
-    			world.loadChunk(x, y);
-    			world.regenerateChunk(x, y);
+    			Chunk chunk = world.getChunkAt(x, y);
+    			if(chunk.isLoaded()){
+        	    	world.regenerateChunk(x, y);
+    			}
+
     		}
     		
     	}
@@ -333,7 +336,8 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public void addKit(String name, Integer item, Integer amount) throws Exception{
 		HashMap<Integer, Integer> list = new HashMap<Integer, Integer>();
 		list.put(item, amount);
-		save(list, name + ".txt");
+		File data = new File(getDataFolder(), "Classes");
+		save(list, data + "/" + name + ".txt");
 		
 	}
 	public void addKitItem(String name, int item, int amount){
@@ -343,6 +347,18 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		cfg.set("motd", message);
 		saveConfig();
 	}
+	public void vanish(Player player){
+		player.sendMessage("You are now hidden");
+		for (Player hidefrom :Bukkit.getServer().getOnlinePlayers()){
+			hidefrom.hidePlayer(player);
+		}
+	}
+	public void setGM(Player player){
+		vanish(player);
+		player.setGameMode(GameMode.CREATIVE);
+		getConfig().set("particpants", getConfig().getStringList("participants").remove(player.getName()));
+	}
+		
 
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args){
 		Player player = (Player) sender;
@@ -454,21 +470,27 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				player.sendMessage("You must be Op to add a kit");
 				return true;
 			}
-			else{
-				if ((args[0] instanceof String) || args[0] == null || Integer.getInteger(args[1]) instanceof Integer || args[1] == null || args[2] == null){
-					player.sendMessage("You need to insert the right commands!");
+			else {
+				try {
+					addKit(args[0], Integer.getInteger(args[1]), Integer.getInteger(args[2]));
+					player.sendMessage(args[0] + " was added");
+					return true;
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
-				else {
-					try {
-						addKit(args[0], Integer.getInteger(args[1]), Integer.getInteger(args[2]));
-						player.sendMessage(args[0] + " was added");
-						return true;
-					} catch (Exception e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-					return false;
-				}
+				return false;
+			}
+		}
+		if (cmd.getName().equalsIgnoreCase("setgm")){
+			if(!player.isOp()){
+				player.sendMessage("You must be Op to set a player as gamemaker");
+				return true;
+			}
+			else {
+				setGM(getServer().getPlayer(args[0]));
+				player.sendMessage(args[0] + "is now a GM");
+				return true;
 			}
 		}
 			
