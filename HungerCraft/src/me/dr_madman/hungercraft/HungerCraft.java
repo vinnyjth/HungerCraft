@@ -146,7 +146,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		return result;
 	}
 	public void generateWorld(){
-		WorldCreator newworld = new WorldCreator("world2");
+		final WorldCreator newworld = new WorldCreator("world2");
 		Random randomGenerator = new Random();
 		Long seed = randomGenerator.nextLong();
 		newworld.type(WorldType.NORMAL);
@@ -325,12 +325,6 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		clearList("leftgame");
 		clearList("dead");
 		saveConfig();
-		List<World> worlds = Bukkit.getServer().getWorlds();
-        for (World world : worlds){
-        	world.setSpawnLocation(0, 64, 0);
-        	world.setPVP(false);
-        	
-        }
 		
 	}
 	public void addKit(String name, Integer item, Integer amount) throws Exception{

@@ -1,10 +1,7 @@
 package me.dr_madman.hungercraft;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -14,7 +11,6 @@ import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Entity;
@@ -70,11 +66,15 @@ public class HungerListener implements Listener {
 		for (Entity entity: Bukkit.getServer().getWorld("world2").getEntities()){
 			entity.remove();
 		Bukkit.getServer().broadcastMessage("deleting world");
-		 Bukkit.getServer().broadcastMessage(Bukkit.getServer().getWorld("world2").getEntities() + "are there any lef?");
 		 Bukkit.getServer().unloadWorld(Bukkit.getServer().getWorld("world2"), false);
 		deleteWorld("world2");
-		plugin.generateWorld();
-		plugin.stopGameEndofRound();
+		plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
+
+			   public void run() {
+				   plugin.generateWorld();
+				   plugin.stopGameEndofRound();
+			   }
+			}, 300L);
 		}
 					  
 					   
@@ -85,26 +85,8 @@ public class HungerListener implements Listener {
 	public void deleteWorld(String world){
 		String line = "rm -rf " + world;
 		try {
-			Process child = Runtime.getRuntime().exec(line);
-			BufferedReader stdInput = new BufferedReader(new 
-					InputStreamReader(child.getInputStream()));
-
-	        BufferedReader stdError = new BufferedReader(new 
-	                 InputStreamReader(child.getErrorStream()));
-
-	         // read the output from the command
-	         System.out.println("Here is the standard output of the command:\n");
-	         String s;
-			while ((s = stdInput.readLine()) != null) {
-	             System.out.println(s);
-	         }
-	            
-	         // read any errors from the attempted command
-	         System.out.println("Here is the standard error of the command (if any):\n");
-	            while ((s = stdError.readLine()) != null) {
-	         System.out.println(s);
-	         }
-	         System.exit(0);
+			Runtime.getRuntime().exec(line);
+			Bukkit.getServer().broadcastMessage("Deleted world");
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -341,7 +323,7 @@ public class HungerListener implements Listener {
 			}
 		}
 		else {
-			player.teleport(plugin.getServer().getWorld("world2").getSpawnLocation());
+			player.teleport(plugin.getServer().getWorld("world").getSpawnLocation());
 			displayMessageDelayed(player, "Choose a class with /kit ");
 			if(Bukkit.getServer().getOnlinePlayers().length == 1){
 				Bukkit.getServer().broadcastMessage("Round is starting");
