@@ -15,7 +15,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 public class CompassTracker implements Listener{
 	public final Logger logger = Logger.getLogger("Minecraft");
 	public static ArrayList<String> toggleActivated = new ArrayList<String>();
-	@EventHandler
+	@EventHandler 
 	public void onCompassRightClick(PlayerInteractEvent event){
 		Player player = event.getPlayer();
 		String pname = player.getName();

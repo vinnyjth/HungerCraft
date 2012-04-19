@@ -5,48 +5,89 @@ generator: http://dinnerbone.com/minecraft/tools/pluginator/
 main: me.dr_madman.hungercraft.HungerCraft
 name: HungerCraft
 startup: postworld
-version: '.1'
+version: '.7'
 commands:
    teleport:
-      description: This is a demo command.
-      usage: /<command> [player]
-      permission: <plugin name>.basic
-      permission-message: You don't have <permission>
-   startgame:
-      description: This is a demo command.
-      usage: /<command> [player]
-      permission: <plugin name>.basic
-      permission-message: You don't have <permission>
-   stopgame:
-      description: This is a demo command.
-      usage: /<command> [player]
-      permission: <plugin name>.basic
+      description: This command is for testing only.
+      usage: /<command> 
+      permission: hc.teleport
       permission-message: You don't have <permission>
    setborder:
-      description: This is a demo command.
-      usage: /<command> [player]
-      permission: <plugin name>.basic
+      description: Sets the border of the world.
+      usage: /<command> [int]
+      permission: hc.border
       permission-message: You don't have <permission>
    forcestart:
-      description: This is a demo command.
-      usage: /<command> [player]
-      permission: <plugin name>.basic
+      description: Forces the game tot start.
+      usage: /<command> 
+      permission: hc.start
       permission-message: You don't have <permission>
    kit:
-      description: This is a demo command.
-      usage: /<command> [player]
+      description: Gives the player a kit.
+      usage: /<command> [kit]
       permission: 
       permission-message: You don't have <permission>
    addkit:
-      description: This is a demo command.
-      usage: /<command> [player]
-      permission: <plugin name>.basic
+      description: Creates a new kit.
+      usage: /<command> [name] [itemid] [amount]
+      permission: hc.addkit
       permission-message: You don't have <permission>
    setgm:
-      description: This is a demo command.
+      description: Changes a player to GM.
       usage: /<command> [player]
-      permission: <plugin name>.basic
+      permission: hc.setgm
       permission-message: You don't have <permission>
+   votestart:
+      description: This command allows players to vote to start.
+      usage: /<command> 
+      permission:
+      permission-message: You don't have <permission>
+   additem:
+      description: Adds an item to a kit.
+      usage: /<command> [name] [itemid] [amount]
+      permission: hc.additem
+      permission-message: You don't have <permission>
+   itemlist:
+      description: Adds an item to a kit.
+      usage: /<command> [name] [itemid] [amount]
+      permission: hc.additem
+      permission-message: You don't have <permission>
+   vipkit:
+      description: Gives the player a VIP kit.
+      usage: /<command> [kit]
+      permission: 
+      permission-message: You don't have <permission>
+   addvipitem:
+      description: Adds an item to a VIP kit.
+      usage: /<command> [name] [itemid] [amount]
+      permission: hc.additem
+      permission-message: You don't have <permission>
+   addvipkit:
+      description: Creates a new VIP kit.
+      usage: /<command> [name] [itemid] [amount]
+      permission: hc.addkit
+      permission-message: You don't have <permission>
+   addvip:
+      description: Add a player to the VIP list.
+      usage: /<command> [player]
+      permission: hc.addvip
+      permission-message: You don't have <permission>
+   info:
+      description: Displays info about the server.
+      usage: /<command> 
+      permission: 
+      permission-message: You don't have <permission>
+   gm:
+      description: Sets a player to be a Game Maker.
+      usage: /<command> 
+      permission: hc.gm
+      permission-message: You don't have <permission>
+
+
+
+
+
+
 
 
 

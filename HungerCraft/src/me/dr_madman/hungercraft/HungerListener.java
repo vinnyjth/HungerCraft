@@ -1,19 +1,20 @@
 package me.dr_madman.hungercraft;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.Difficulty;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
@@ -31,6 +32,8 @@ public class HungerListener implements Listener {
 	private HungerCraft plugin;
 	private FileConfiguration cfg;
 	private int id;
+	public String prefix = "[HC] " + ChatColor.ITALIC + "" + ChatColor.GREEN;
+	private Player lastjoin = null;
 	public HungerListener(HungerCraft instance) {plugin = instance;}
 
 	Logger log;
@@ -58,46 +61,60 @@ public class HungerListener implements Listener {
 	}
 	public void setupNewGame(){
 		for(Player player :Bukkit.getServer().getOnlinePlayers()){
-			player.kickPlayer("Server restarting(nice job btw)");
+			player.kickPlayer(prefix +  "You won! Server restarting(nice job btw)");
 		}
 		cfg.set("setup", true);
 		cfg.set("motd", "Setting up next game");	
 		plugin.saveConfig();
-		for (Entity entity: Bukkit.getServer().getWorld("world2").getEntities()){
-			entity.remove();
 		Bukkit.getServer().broadcastMessage("deleting world");
-		 Bukkit.getServer().unloadWorld(Bukkit.getServer().getWorld("world2"), false);
-		deleteWorld("world2");
-		plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
-
-			   public void run() {
-				   plugin.generateWorld();
-				   plugin.stopGameEndofRound();
-			   }
-			}, 300L);
+		if( Bukkit.getServer().unloadWorld(Bukkit.getServer().getWorld(plugin.getConfig().getString("option.worldname")), false)){
+			deleteWorld(plugin.getConfig().getString("option.worldname"));
 		}
-					  
-					   
+	    plugin.generateWorld();
+	    plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
 
+			public void run() {
+				plugin.stopGameEndofRound();
+	        }
+		}, 600L);
+
+		
 	}
 		
 
 	public void deleteWorld(String world){
-		String line = "rm -rf " + world;
-		try {
-			Runtime.getRuntime().exec(line);
-			Bukkit.getServer().broadcastMessage("Deleted world");
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		
-		
-	}
+        String line = "rm -rf " + world;
+        try {
+            Process child = Runtime.getRuntime().exec(line);
+            BufferedReader stdInput = new BufferedReader(new
+                    InputStreamReader(child.getInputStream()));
+ 
+            BufferedReader stdError = new BufferedReader(new
+                    InputStreamReader(child.getErrorStream()));
+ 
+            // read the output from the command
+            System.out.println("Here is the standard output of the command:\n");
+            String s;
+            while ((s = stdInput.readLine()) != null) {
+                System.out.println(s);
+            }
+ 
+            // read any errors from the attempted command
+            System.out.println("Here is the standard error of the command (if any):\n");
+                while ((s = stdError.readLine()) != null) {
+            System.out.println(s);
+            }
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+ 
+ 
+    }
 
 /**
    public boolean deleteWorld(){
-	   String worldname = "world2";
+	   String worldname = "getConfig().getString("worldname")";
 	   if (Bukkit.getServer().unloadWorld(worldname, false)) {
            Bukkit.getServer().broadcastMessage("***********");
            Bukkit.getServer().broadcastMessage("Unloaded World");
@@ -121,7 +138,7 @@ public class HungerListener implements Listener {
      }
   */
    public boolean deleteDir(File dir) {
-	   Bukkit.getServer().unloadWorld((Bukkit.getServer().getWorld("world2")), false);
+	   Bukkit.getServer().unloadWorld((Bukkit.getServer().getWorld(plugin.getConfig().getString("worldname"))), false);
        if (dir.isDirectory()) {
                String[] children = dir.list();
                for (String element : children) {
@@ -187,6 +204,9 @@ public class HungerListener implements Listener {
 			plugin.getServer().getScheduler().scheduleSyncDelayedTask(plugin, new Runnable() {
 
 				public void run() {
+					if(checkList(player, "dead")){
+						return;
+					}
 					if(checkList(player, "leftgame")){
 						removeList(player,"leftgame");
 						String pname = player.getName();
@@ -259,15 +279,15 @@ public class HungerListener implements Listener {
 	@EventHandler
 	public void playerMove(PlayerMoveEvent event){
 		Player player = event.getPlayer();
-		int distancefromspawn = (plugin.getConfig().getInt("arenasize"))*(plugin.getConfig().getInt("arenasize"));
+		int distancefromspawn = (plugin.getConfig().getInt("option.arenasize"))*(plugin.getConfig().getInt("option.arenasize"));
 		if(checkActive()){
-			Double distance = player.getLocation().distanceSquared(Bukkit.getServer().getWorld("world2").getSpawnLocation());
+			Double distance = player.getLocation().distanceSquared(Bukkit.getServer().getWorld(plugin.getConfig().getString("option.worldname")).getSpawnLocation());
 			int distanceint = distance.intValue();
 			if (distanceint > distancefromspawn - 3000){
-				player.sendMessage("You are approaching the force field");
+				player.sendMessage(prefix + "You are approaching the force field. Contact with field results in death");
 			}
 			if(distance > distancefromspawn){
-				if(plugin.getConfig().getBoolean("borderkill")){
+				if(plugin.getConfig().getBoolean("option.borderkill")){
 					player.getWorld().createExplosion(player.getLocation(), 4F, true);
 				}
 				else {
@@ -286,7 +306,7 @@ public class HungerListener implements Listener {
 			player.kickPlayer(kickmessage);
 			removeList(player, "participants");
 			addList(player, "dead");
-			Bukkit.getServer().broadcastMessage(plugin.getConfig().getStringList("participants").size() + " players remain");
+			Bukkit.getServer().broadcastMessage(prefix + plugin.getConfig().getStringList("participants").size() + " players remain");
 			plugin.getConfig().set("motd", (plugin.getConfig().getStringList("participants").size()  + " players remain"));
 
 		}
@@ -296,13 +316,32 @@ public class HungerListener implements Listener {
 		cfg = plugin.getConfig();
 		Player player = event.getPlayer();
 		String pname = player.getName();
+		List<String> pNameList = new ArrayList<String>();
+		for (Player players : Bukkit.getServer().getOnlinePlayers()){
+			pNameList.add(players.getName());
+		}
+		displayMessageDelayed(player, prefix + "Choose a class with /kit, or if you are a vip, /vipkit");
+		displayMessageDelayed(player, prefix + "Type /votestart to vote to start");
+		displayMessageDelayed(player, prefix + "Get info about the server with /info");
+		displayMessageDelayed(player, prefix + "Player list: " + pNameList);
+		if(Bukkit.getServer().getOnlinePlayers().length == Bukkit.getServer().getMaxPlayers()){
+			if(player.hasPermission("hc.vip")){
+				lastjoin.kickPlayer(prefix + "Making room for a VIP");
+			}
+			
+		}
 		if(cfg.getBoolean("setup")){
-			event.disallow(Result.KICK_OTHER, "Setting up next game");
+			event.disallow(Result.KICK_OTHER, prefix + "Setting up next game");
 			return;
 		}
 		if(checkActive()){
+			if(player.isOp() || player.hasPermission("hc.gm")){
+				plugin.setGM(player);
+				player.sendMessage(prefix + " You are now a GM");
+				plugin.isgm.put(player, true);
+			}
 			if(cfg.getStringList("dead").contains(pname)){
-					event.disallow(Result.KICK_OTHER, "You have died, wait for the next game");
+					event.disallow(Result.KICK_OTHER,prefix + "You have died, wait for the next game");
 					return;
 
 			}
@@ -312,23 +351,27 @@ public class HungerListener implements Listener {
 				addList(player, "participants");
 				return;
 			}
-			if(player.isOp()){
-				event.allow();
-				removeList(player,"leftgame");
-				addList(player, "participants");
-			}
 			else{
+				
 				event.disallow(Result.KICK_OTHER, "Game in progress");
 				return;
 			}
 		}
 		else {
 			player.teleport(plugin.getServer().getWorld("world").getSpawnLocation());
-			displayMessageDelayed(player, "Choose a class with /kit ");
-			if(Bukkit.getServer().getOnlinePlayers().length == 1){
-				Bukkit.getServer().broadcastMessage("Round is starting");
-				plugin.countdown(player);
+			if(Bukkit.getServer().getOnlinePlayers().length >= 1){
+				Bukkit.getServer().broadcastMessage(prefix + "Round is starting");
+				if(!plugin.countdownactive){
+					plugin.countdown(player);
+				}
+
+				 
+
 			}
+			plugin.tostart = Bukkit.getServer().getOnlinePlayers().length / (4/3);
+		}
+		if (!player.hasPermission("hc.vip")){
+			lastjoin = player;
 		}
 	}
 	@EventHandler
@@ -336,6 +379,14 @@ public class HungerListener implements Listener {
 		Player player = event.getPlayer();
 		if(checkActive()){
 			if(checkList(player, "dead")){
+				if(Bukkit.getServer().getOnlinePlayers().length == 5){
+					Bukkit.getServer().getWorld(plugin.getConfig().getString("option.worldname")).setDifficulty(Difficulty.NORMAL);
+					Bukkit.getServer().broadcastMessage(prefix + "Difficulty is now normal");
+				}
+				if(Bukkit.getServer().getOnlinePlayers().length == 3){
+					Bukkit.getServer().getWorld(plugin.getConfig().getString("option.worldname")).setDifficulty(Difficulty.HARD);
+					Bukkit.getServer().broadcastMessage(prefix + "Difficulty is now hard");
+				} 
 				return;
 			}
 			else{
@@ -349,6 +400,10 @@ public class HungerListener implements Listener {
 			checkWinner();
 
 		}
+		else { plugin.tostart = Bukkit.getServer().getOnlinePlayers().length / (4/3);
+		 Bukkit.broadcastMessage(String.valueOf(plugin.tostart));
+		}
+		CompassTrackerUpdater.removePlayer(player);
 		
 	}
 	@EventHandler

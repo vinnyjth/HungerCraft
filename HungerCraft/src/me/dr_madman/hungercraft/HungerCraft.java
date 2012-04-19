@@ -1,10 +1,6 @@
 package me.dr_madman.hungercraft;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -12,8 +8,9 @@ import java.util.Random;
 import java.util.logging.Logger;
 
 
+
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
+import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -26,11 +23,15 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.Vector;
+
+import me.dr_madman.hungercraft.KitHandler;
 
 public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	@SuppressWarnings("unused")
@@ -42,9 +43,17 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public HungerListener hungerlistener = new HungerListener(this);
 	public RandomTeleport randomteleport = new RandomTeleport(this);
 	public WorldManagement worldmanagement = new WorldManagement(this);
+	public KitHandler kithandler = new KitHandler(this);
 	public CompassTrackerUpdater compasstrackerupdater = new CompassTrackerUpdater(this);
 	private int id;
+	public int tostart = 0;
+	public int voted = 0;
+	public boolean countdownactive = false;
+	public String prefix = "[HC] " + ChatColor.ITALIC + "" + ChatColor.GREEN;
 	public HashMap<Player, String> chosenkit = new HashMap<Player, String>();
+	public HashMap<Player, String> chosenkitvip = new HashMap<Player, String>();
+	private HashMap<Player, Boolean> hasvoted = new HashMap<Player, Boolean>();
+	public HashMap<Player, Boolean> isgm = new HashMap<Player, Boolean>();
 	public Location getLocation(Player p, int i){
 		int x = cfg.getInt(p.getWorld().getName() + "." + i + "." + "X");
         int y = cfg.getInt(p.getWorld().getName() + "." + i + "." + "Y");
@@ -60,22 +69,30 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         getServer().getPluginManager().registerEvents(hungerlistener, this);
         getServer().getPluginManager().registerEvents(compasstracker, this);
         checkFolder();
+        checkVIPFolder();
         cfg = getConfig();
         cfg.addDefault("isactive", false);
-        cfg.addDefault("usespawnpoints", false);
-        cfg.addDefault("spawnradius", 30);
-        cfg.addDefault("arenasize", 500);
-        cfg.addDefault("borderkill", true);
+        cfg.addDefault("option.usespawnpoints", false);
+        cfg.addDefault("option.spawnradius", 30);
+        cfg.addDefault("option.arenasize", 500);
+        cfg.addDefault("option.borderkill", true);
+        cfg.addDefault("option.joinmessage", "Interested in VIP or Gamemaker? Type /buy");
         cfg.addDefault("participants", null);
         cfg.addDefault("leftgame", null);
         cfg.addDefault("dead", null);
         cfg.addDefault("world", "world");
         cfg.addDefault("motd", "Game inactive");
-        cfg.addDefault("timebetweenrounds", 300);
+        cfg.addDefault("option.timebetweenrounds", 300);
         cfg.addDefault("setup", false);
-        cfg.addDefault("seeds", null);
+        cfg.addDefault("option.worldname", "arena1");
+        cfg.addDefault("VIP", null);
+        cfg.addDefault("option.owner", "Dr_MadMan");
+        tostart = 0;
+        voted = 0;
+        hasvoted.clear();
         try {
-			initKits();
+			KitHandler.initKits();
+			KitHandler.initVIP();
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -87,7 +104,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         	world.setPVP(false);
         	
         }
-        if(!checkForWorld("world2")){
+        if(!checkForWorld(getConfig().getString("option.worldname"))){
         	generateWorld();
         }
         stopGameEndofRound();
@@ -111,6 +128,15 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		}
 		
 	}
+	/**public HashMap getKits(){
+		HashMap<String, List<ItemStack>> kits = new HashMap<String, List<ItemStack>>();
+		List<ItemStack> kitlist = getConfig().getConfigurationSection("kits.").getKeys(false)
+		for (String key : getConfig().getConfigurationSection("kits.").getKeys(false)){
+		    kits.put(key, getConfig().getInt("kits." + key));
+		}
+		return kits;
+	}
+	*/
 	public void checkFolder(){
 		File dir1 = getDataFolder();
 		File dir = new File(dir1, "Classes");
@@ -119,34 +145,24 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			dir.mkdir();
 		}
 	}
-	public static void save(Object obj,String path) throws Exception
-	{
-		ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(path));
-		oos.writeObject(obj);
-		oos.flush();
-		oos.close();
-	}
-	public List<String> listKits(){
+	public void checkVIPFolder(){
 		File dir1 = getDataFolder();
-		File dir = new File(dir1, "Classes");
-
-		String[] children = dir.list();
-		List<String> classes = new ArrayList<String>();
-		for (String i : children){
-			String j = i.substring(0, i.length()-4);
-			classes.add(j);
+		File dir = new File(dir1, "VIP");
+		boolean exists = dir.exists();
+		if(!exists){
+			dir.mkdir();
 		}
-		return classes;
 	}
-	public static Object load(String path) throws Exception
-	{
-		ObjectInputStream ois = new ObjectInputStream(new FileInputStream(path));
-		Object result = ois.readObject();
-		ois.close();
-		return result;
-	}
+	
 	public void generateWorld(){
-		final WorldCreator newworld = new WorldCreator("world2");
+		String worldname = getConfig().getString("option.worldname");
+		String worldnameraw = worldname.substring(0, worldname.length()-1);
+		int i = Integer.parseInt(worldname.substring(worldname.length()-1, worldname.length()));
+		i++;
+		String newworldname = worldnameraw + i;
+		cfg.set("option.worldname", newworldname);
+		saveConfig();
+		final WorldCreator newworld = new WorldCreator(newworldname);
 		Random randomGenerator = new Random();
 		Long seed = randomGenerator.nextLong();
 		newworld.type(WorldType.NORMAL);
@@ -158,23 +174,26 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		
 	}
 	
-	public void initKits() throws Exception{
-		File data = new File(getDataFolder(), "Classes");
-		HashMap<Integer, Integer> Archer = new HashMap<Integer, Integer>();
-	    Archer.put( 262, 16);
-	    Archer.put( 261, 1);
-	    Archer.put( 345, 1);
-	    save(Archer, data + "/archer.txt");
-	    HashMap<Integer, Integer> Baker = new HashMap<Integer, Integer>();
-	    Baker.put( 297, 4);
-	    Baker.put( 345, 1);
-	    save(Baker, data + "/baker.txt");
-	    HashMap<Integer, Integer> Miner = new HashMap<Integer, Integer>();
-	    Miner.put( 274, 1);
-	    Miner.put( 345, 1);
-	    save(Miner, data + "/miner.txt");
-		
-	}
+	/**public void initKits(){
+		HashMap<String, List<ItemStack>> classes = new HashMap<String, List<ItemStack>>();
+		List<ItemStack> archeritems = Arrays.asList(new ItemStack(Material.BOW, 1), new ItemStack(Material.ARROW, 16), new ItemStack(Material.COMPASS, 1));
+	    classes.put("archer", archeritems);
+	    List<ItemStack> mineritems = Arrays.asList(new ItemStack(Material.STONE_PICKAXE, 1), new ItemStack(Material.COMPASS, 1));
+	    classes.put("miner", mineritems);
+	    List<ItemStack> bakeritems = Arrays.asList(new ItemStack(Material.BREAD, 4), new ItemStack(Material.COMPASS, 1));
+	    classes.put("baker", bakeritems);
+	    
+
+	} 
+	
+	public void saveKit(HashMap<String, List<ItemStack>> classes){
+		for (Map.Entry<String, List<ItemStack>> entry : classes.entrySet())
+	    {
+	        getConfig().set("kits." + entry.getKey(), entry.getValue());
+	        saveConfig();
+
+	    }
+	}*/
 	
 	public static JavaPlugin getPlugin(){
 		return plugin;
@@ -182,30 +201,39 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public void randomTeleport(){
 		Player[] players = Bukkit.getServer().getOnlinePlayers();
 		for (Player player : players){
-			Bukkit.getServer().broadcastMessage("Teleporting players");
-			player.teleport(getServer().getWorld("world2").getSpawnLocation());
+			player.teleport(getServer().getWorld(getConfig().getString("option.worldname")).getSpawnLocation().add(new Vector(0,64,0)));
 			
 		}
 	}
 	public void countdown(final Player player){
+		if (countdownactive == true){
+			return;	
+		}
+		countdownactive = true;
 		this.id = getServer().getScheduler().scheduleSyncRepeatingTask(this, new Runnable() {
-			int timebetweenrounds = cfg.getInt("timebetweenrounds")+10;
+			int timebetweenrounds = cfg.getInt("option.timebetweenrounds")+10;
+
 
 		    public void run() {
-		    	if(Bukkit.getServer().getOnlinePlayers().length == 1){
-		    		Bukkit.getScheduler().cancelTask(id);
-		    		Bukkit.getServer().broadcastMessage("Too few players to start :(");
+		    	if(Bukkit.getServer().getOnlinePlayers().length <= 1){
+		    		Bukkit.getServer().broadcastMessage(prefix +  "Too few players to start the countdown:(");
 		    		stopGameEndofRound();
+		    		Bukkit.getScheduler().cancelTask(id);
+		    		return;
 		    	}
 		    	if(getConfig().getBoolean("isactive")){
 		    		Bukkit.getScheduler().cancelTask(id);
 		    	}
 		    	else {
 		    		timebetweenrounds = timebetweenrounds - 10;
-		    		Bukkit.getServer().broadcastMessage("Round starts in " + timebetweenrounds + " seconds");
+		    		Bukkit.getServer().broadcastMessage(prefix + "Round starts in " + timebetweenrounds + " seconds");
 		    		cfg.set("motd", "Round starts in " + timebetweenrounds + " seconds");
 		    		saveConfig();
+		    		if (timebetweenrounds < 0){
+			    		Bukkit.getScheduler().cancelTask(id);
+			    	}
 		    		if (timebetweenrounds == 0){
+		    			countdownactive = false;
 			    		startGame(player);
 			    		Bukkit.getScheduler().cancelTask(id);
 			    	}
@@ -224,7 +252,14 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			participants.add(parname);
 			player.setHealth(20);
 			player.setFoodLevel(20);
-			player.getInventory().clear();
+			Inventory inv = player.getInventory();
+			inv.clear();
+			player.setGameMode(GameMode.SURVIVAL);
+			((PlayerInventory) inv).setBoots(null);
+			((PlayerInventory) inv).setLeggings(null);
+			((PlayerInventory) inv).setChestplate(null);
+			((PlayerInventory) inv).setHelmet(null);
+			show(player);
 			player.addPotionEffect(new PotionEffect(PotionEffectType.DAMAGE_RESISTANCE, 1200, 10));
 			
 	    }	
@@ -233,30 +268,43 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	    saveConfig();
 	}
 	public void startGame(Player sender){
-		if(Bukkit.getServer().getOnlinePlayers().length == 1){
-			Bukkit.getServer().broadcastMessage("Too few players to start :(");
+		if(Bukkit.getServer().getOnlinePlayers().length < 2){
+			Bukkit.getServer().broadcastMessage(prefix + "Too few players to start :(");
+			return;
 		}
 		cfg = getConfig();
 		cfg.set("isactive", true);
+		voted = 0;
+		tostart = 0;
+		hasvoted.clear();
 		saveConfig();
 		randomTeleport();
 		sender.getWorld().setPVP(true);
 	    World world = sender.getWorld();
 	    world.setTime(0);
 	    setParticipants();
-	    Bukkit.getServer().broadcastMessage("The Hunger Games have Begun!");
+	    Bukkit.getServer().broadcastMessage(prefix + "The Hunger Games have Begun!");
+	    brodcastInvincbility();
 	    setMOTD("Game in progress");
 	    for(Player player : Bukkit.getServer().getOnlinePlayers()){
 	    	if (chosenkit.containsKey(player)){
 	    		String i = chosenkit.get(player);
 	    		try {
-					getKit(player, i);
+					KitHandler.getKit(player, i);
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
 	    	}
-	    	
+	    	if (chosenkitvip.containsKey(player)){
+	    		String i = chosenkitvip.get(player);
+	    		try {
+					KitHandler.getKitVIP(player, i);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+	    	}
 	    }
 	}
 	public void clearList(String list){
@@ -264,6 +312,22 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		cfg.set(list, null);
 		saveConfig();
 		
+	}
+	public void brodcastInvincbility(){
+		this.id = this.getServer().getScheduler().scheduleSyncRepeatingTask(this, new Runnable() {
+			int times = 60;
+
+		    public void run() {
+		    	Bukkit.getServer().broadcastMessage(prefix + times + " Seconds remain of invincibility");
+		    	times = times -10;
+		    	if (times == -10){
+		    		Bukkit.getServer().broadcastMessage(prefix + "Invincibilty has worn off!");
+		    		Bukkit.getScheduler().cancelTask(id);
+		    	}
+		    	
+
+		    }
+		}, 1L, 200L);
 	}
 	
 	public boolean checkForWater(World world){
@@ -279,21 +343,9 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		}
 		
 	}
-	public void getKit(Player player, String kit) throws Exception{
-		String kitlower = kit.toLowerCase();
-		File data = new File(getDataFolder(), "Classes");
-		@SuppressWarnings("unchecked")
-		HashMap<Integer, Integer> list = (HashMap<Integer, Integer>) load(data + "/" + kitlower + ".txt");
-		for(Integer i : list.keySet()){
-			Integer j = list.get(i);
-			player.sendMessage("adding" + i.toString() + j.toString());
-			player.getInventory().addItem(new ItemStack(i, j));
-			
-		}
-		
-	}
-    public void regenChunks(World world){
-    	int borderSize = cfg.getInt("arenasize");
+	
+    /**public void regenChunks(World world){
+    	int borderSize = cfg.getInt("option.arenasize");
     	borderSize = (borderSize/16) + 10;
     	for(int x = -borderSize; x != borderSize; x++){
     		Bukkit.getServer().broadcastMessage(x + "x");
@@ -307,6 +359,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
     		
     	}
 	}
+	*/
 	public void stopGame(Player sender){
 		cfg = getConfig();
 		cfg.set("isactive", false);
@@ -327,38 +380,70 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		saveConfig();
 		
 	}
-	public void addKit(String name, Integer item, Integer amount) throws Exception{
-		HashMap<Integer, Integer> list = new HashMap<Integer, Integer>();
-		list.put(item, amount);
-		File data = new File(getDataFolder(), "Classes");
-		save(list, data + "/" + name + ".txt");
-		
+	/**public void addKit(String name, String item, int amount){
+		HashMap<String, List<ItemStack>> classes = new HashMap<String, List<ItemStack>>();
+		ItemStack itemstack = new ItemStack(Material.getMaterial(item.toUpperCase()), amount);
+		List<ItemStack> list = Arrays.asList(itemstack);
+		list.add(itemstack);
+		classes.put(name,list);
+		saveKit(classes);
 	}
-	public void addKitItem(String name, int item, int amount){
-		
+	*/
+	public List<String> getPars(){
+		List<String> list = getConfig().getStringList("participants");
+		return list;
 	}
+	
 	public void setMOTD(String message){
 		cfg.set("motd", message);
 		saveConfig();
 	}
 	public void vanish(Player player){
-		player.sendMessage("You are now hidden");
+		player.sendMessage(prefix + "You are now hidden");
 		for (Player hidefrom :Bukkit.getServer().getOnlinePlayers()){
 			hidefrom.hidePlayer(player);
+		}
+	}
+	public void show(Player player){
+		for (Player hidefrom :Bukkit.getServer().getOnlinePlayers()){
+			hidefrom.showPlayer(player);
 		}
 	}
 	public void setGM(Player player){
 		vanish(player);
 		player.setGameMode(GameMode.CREATIVE);
-		getConfig().set("particpants", getConfig().getStringList("participants").remove(player.getName()));
+		List<String> list = getPars();
+		String pname = player.getName();
+		list.remove(pname);
+		getConfig().set("participants", list);
+		getConfig().set("dead", getConfig().getStringList("dead").add(player.getName()));
+		saveConfig();
 	}
+	public void disableGM(Player player){
+		show(player);
+		player.setGameMode(GameMode.SURVIVAL);
+		getConfig().set("participants", getConfig().getStringList("participants").add(player.getName()));
+		getConfig().set("dead", getConfig().getStringList("dead").remove(player.getName()));
+		saveConfig();
+	}
+	public void checkVotes(Player player){
+		if(voted == tostart){
+			getServer().broadcastMessage(prefix + "Enough votes have been recieved! Game is starting!");
+			startGame(player);
+		}
+		else{
+			int votesleft = tostart-voted;
+			Bukkit.getServer().broadcastMessage(prefix + votesleft + " votes are needed to start the game");
+		}
+	}
+	
 		
 
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args){
 		Player player = (Player) sender;
 		if (cmd.getName().equalsIgnoreCase("teleport")){
 			
-			player.teleport(getServer().getWorld("world2").getSpawnLocation());
+			player.teleport(getServer().getWorld(getConfig().getString("worldname")).getSpawnLocation());
 				
 		}
 		if(cmd.getName().equalsIgnoreCase("startgame")){
@@ -368,13 +453,13 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 					return true;
 				}
 				else {
-					player.sendMessage("Game is already started!");
+					player.sendMessage(prefix + "Game is already started!");
 				}
 
 
 			}
 			else {
-				player.sendMessage("You must be an OP to start the game!");
+				player.sendMessage(prefix + "You must be an OP to start the game!");
 				return true;
 			}
 		}
@@ -385,13 +470,13 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 					return true;
 				}
 				else {
-					player.sendMessage("Game is already started!");
+					player.sendMessage(prefix + "Game is already started!");
 				}
 
 
 			}
 			else {
-				player.sendMessage("You must be an OP to start the game!");
+				player.sendMessage(prefix + "You must be an OP to start the game!");
 				return true;
 			}
 		}
@@ -399,16 +484,16 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			if(player.isOp()){
 				if(getConfig().getBoolean("isactive")){
 					stopGameEndofRound();
-					player.sendMessage("Game has been stopped");
+					player.sendMessage(prefix + "Game has been stopped");
 					return true;
 				}
 				else {
-					player.sendMessage("Game is already stopped!");
+					player.sendMessage(prefix + "Game is already stopped!");
 				}
 
 			}
 			else {
-				player.sendMessage("You must be an OP to start the game!");
+				player.sendMessage(prefix + "You must be an OP to start the game!");
 				return true;
 			}
 		}
@@ -417,57 +502,71 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				return false;
 			}
 			int bordersize = Integer.parseInt(args[0]);
-			getConfig().set("arenasize", bordersize);
+			getConfig().set("option.arenasize", bordersize);
 			saveConfig();
 			reloadConfig();
 			player.sendMessage("Border has been set");
 			return true;
 		}
 		if (cmd.getName().equalsIgnoreCase("kit")){
-			if(args[0] == null){
-				player.sendMessage("You need to include a kit");
+			if(args.length == 0){
+				sender.sendMessage(prefix +"These are the kits " + KitHandler.listKits());
 				return true;
-					
+			}
+			if(args[0] == "list"){
+				player.sendMessage(prefix +"These are the kits " + KitHandler.listKits());
+				return true;
 			}
 			if (getConfig().getBoolean("isactive")){
-				player.sendMessage("Game is in progress!");
+				player.sendMessage(prefix +"Game is in progress!");
 				return true;
 			}
-			
-			if(args[0] == "list"){
-				player.sendMessage("These are the kits" + listKits());
-				return true;
-			}
-			
-			
-			
-			if(listKits().contains(args[0])){
+			if(KitHandler.listKits().contains(args[0])){
 				try {
+					chosenkit.remove(player);
 					chosenkit.put(player, args[0]);
-					player.sendMessage(args[0]+ "chosen");
+					player.sendMessage(prefix + args[0]+ " chosen");
 					return true;
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-					player.sendMessage(args[0] + "was invalid!");
+					player.sendMessage(prefix + args[0] + "was invalid!");
 					return false;
 				}
 			}
 			else {
-				player.sendMessage("These are the kits" + listKits());
+				player.sendMessage(prefix + "These are the kits" + KitHandler.listKits());
 				return true;
 			}
 			
 		}
 		if (cmd.getName().equalsIgnoreCase("addkit")){
 			if(!player.isOp()){
-				player.sendMessage("You must be Op to add a kit");
+				player.sendMessage(prefix + "You must be Op to add a kit");
+				return true;
+			}
+			else {
+				player.sendMessage(Integer.parseInt(args[2]) + "");
+				try {
+					KitHandler.addKit(args[0], args[1], Integer.parseInt(args[2]));
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				player.sendMessage(args[0] + " was added");
+				return true;
+
+			}
+		}
+		if (cmd.getName().equalsIgnoreCase("additem")){
+			if(!player.isOp()){
+				player.sendMessage(prefix + "You must be Op to add a kit");
 				return true;
 			}
 			else {
 				try {
-					addKit(args[0], Integer.getInteger(args[1]), Integer.getInteger(args[2]));
-					player.sendMessage(args[0] + " was added");
+					KitHandler.addKitItem(args[0], args[1], Integer.parseInt(args[2]));
+					player.sendMessage(args[0] + " items were added");
 					return true;
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
@@ -478,7 +577,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		}
 		if (cmd.getName().equalsIgnoreCase("setgm")){
 			if(!player.isOp()){
-				player.sendMessage("You must be Op to set a player as gamemaker");
+				player.sendMessage(prefix + "You must be Op to set a player as gamemaker");
 				return true;
 			}
 			else {
@@ -487,13 +586,160 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				return true;
 			}
 		}
+		if (cmd.getName().equalsIgnoreCase("votestart")){
+			if(getServer().getOnlinePlayers().length <= 1){
+				player.sendMessage(prefix + "You can't vote to start, not enough players");
+				return true;
+			}
+			if(hasvoted.containsKey(player)){
+				if(hasvoted.get(player) == true){
+					player.sendMessage(prefix + "You have already voted!");
+					return false;
+				}
+			}
+			player.sendMessage(prefix + "You have voted to start");
+			voted++;
+			checkVotes(player);	
+			hasvoted.put(player, true);
+			return true;
+		}
+		if (cmd.getName().equalsIgnoreCase("itemlist")){
+			if(args.length == 0){
+				return false;
+			}
+			else{
+				try {
+					KitHandler.getKit(player, args[0]);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+		}
+		if (cmd.getName().equalsIgnoreCase("addvip")){
+			if(!player.isOp()){
+				player.sendMessage(prefix + "You must be Op to add a VIP");
+				return true;
+			}
+			if(args.length == 0){
+				return false;
+			}
+			else {
+				List<String> vips = getConfig().getStringList("VIP");
+				Player vip = getServer().getOfflinePlayer(args[0]).getPlayer();
+				vips.add(vip.getName());
+				saveConfig();
+				if(vip.isOnline()){
+					vip.sendMessage(prefix + args[0] + " You are now a VIP! Use /vipkit to pick a vipkit");
+				}
+				player.sendMessage(prefix  + " You have set " + args[0] + " as a vip");
+				return true;
+			}
+		}
+		if(cmd.getName().equalsIgnoreCase("info")){
+			player.sendMessage(prefix + "++++++++++++ HungerCraft INFO ++++++++++++" );
+			player.sendMessage(prefix + getConfig().getStringList("participants") + " are the players left in the game");
+			player.sendMessage(prefix + "Plugin created by Dr_MadMan");
+			player.sendMessage(prefix + "This server is owned by " + getConfig().getString("option.owner"));
+			player.sendMessage(prefix + "Bugs? Report to @Dr_MadMan on twitter");
+			
+		}
+		if(cmd.getName().equalsIgnoreCase("gm")){
+			if(player.hasPermission("hc.gm") || player.isOp()){
+				if(isgm.containsKey(player)){
+					if(isgm.get(player)){
+						disableGM(player);
+						player.sendMessage(prefix + "You are no longer GM");
+						isgm.put(player, false);
+						return true;
+					}
+					else{
+						setGM(player);
+						isgm.put(player, true);
+						player.sendMessage(prefix + " You are now a GM");
+					}
+				}
+				else{
+					setGM(player);
+					isgm.put(player, true);
+					player.sendMessage(prefix + " You are now a GM");
+				}
+
+			}
+		}
+
+		//+++++++++++++++++++++++++++++++++++VIP+++++++++++++++++++++++++++++++++++++++
+		if (cmd.getName().equalsIgnoreCase("vipkit")){
+			if(args.length == 0){
+				sender.sendMessage(prefix +"These are the kits " + KitHandler.listVipKits());
+				return true;
+			}
+			if(args[0] == "list"){
+				player.sendMessage(prefix +"These are the kits " + KitHandler.listVipKits());
+				return true;
+			}
+			if (getConfig().getBoolean("isactive")){
+				player.sendMessage(prefix +"Game is in progress!");
+				return true;
+			}
+			if(getConfig().getStringList("VIP").contains(player.getName()) || player.hasPermission("hc.vip")){
+				if(KitHandler.listVipKits().contains(args[0])){
+					try {
+						chosenkitvip.remove(player);
+						chosenkitvip.put(player, args[0]);
+						player.sendMessage(prefix + args[0]+ " chosen");
+						return true;
+					} catch (Exception e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						player.sendMessage(prefix + args[0] + "was invalid!");
+						return false;
+					}
+				}
+				else {
+					player.sendMessage(prefix + "These are the kits" + KitHandler.listVipKits());
+					return true;
+				}
+			
+			}
+		}
+		if (cmd.getName().equalsIgnoreCase("addvipkit")){
+			if(!player.isOp()){
+				player.sendMessage(prefix + "You must be Op to add a kit");
+				return true;
+			}
+			else {
+				player.sendMessage(Integer.parseInt(args[2]) + "");
+				try {
+					KitHandler.addVIPKit(args[0], args[1], Integer.parseInt(args[2]));
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				player.sendMessage(args[0] + " was added");
+				return true;
+
+			}
+		}
+		if (cmd.getName().equalsIgnoreCase("addvipitem")){
+			if(!player.isOp()){
+				player.sendMessage(prefix + "You must be Op to add a kit");
+				return true;
+			}
+			else {
+				try {
+					KitHandler.addVIPKitItem(args[0], args[1], Integer.parseInt(args[2]));
+					player.sendMessage(args[0] + " items were added");
+					return true;
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				return false;
+			}
+		}
 			
 		return false;
-	}
-
-	public void log(String string) {
-		// TODO Auto-generated method stub
-		
 	}
 
 }
