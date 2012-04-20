@@ -20,6 +20,7 @@ import org.bukkit.event.Event;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerLoginEvent;
@@ -173,6 +174,26 @@ public class HungerListener implements Listener {
 		return false;
 	}
 	public void checkWinner(){
+		if (plugin.getConfig().getStringList("participants").size() == 3){
+			Player player0 = Bukkit.getServer().getPlayer(plugin.getConfig().getStringList("participants").get(0));
+			Player player1 = Bukkit.getServer().getPlayer(plugin.getConfig().getStringList("participants").get(1));
+			Player player2 = Bukkit.getServer().getPlayer(plugin.getConfig().getStringList("participants").get(2));
+			if(plugin.teamGrabber(player0) == plugin.teamGrabber(player1) && plugin.teamGrabber(player1) == plugin.teamGrabber(player2)){
+				plugin.clearTags();
+				Bukkit.getServer().broadcastMessage(prefix + "It seems that your team is the only team left! You know what that means, FIGHT!");
+				
+			}
+			return;
+		}
+		if (plugin.getConfig().getStringList("participants").size() == 2){
+			Player player0 = Bukkit.getServer().getPlayer(plugin.getConfig().getStringList("participants").get(0));
+			Player player1 = Bukkit.getServer().getPlayer(plugin.getConfig().getStringList("participants").get(1));
+			if(plugin.teamGrabber(player0) == plugin.teamGrabber(player1)){
+				plugin.clearTags();
+				Bukkit.getServer().broadcastMessage(prefix + "It seems that your team is the only team left! You know what that means, FIGHT!");
+			}
+			return;
+		}
 		if(plugin.getConfig().getStringList("participants").size() == 1){
 			List<String> winners = plugin.getConfig().getStringList("participants");
 			String winner = winners.get(0);
@@ -245,6 +266,23 @@ public class HungerListener implements Listener {
 		    }
 		}, 1L, 20L);
 	}
+	public void setTeamTags(){
+		for(int i : plugin.teams.keySet()){
+			List<Player> players = plugin.teams.get(i);
+			for(Player p: players){
+				setTag(i, p);
+				
+			}
+			
+		}
+	}
+	public void setTag(int i, Player player){
+		String pname = player.getName();
+		if(pname.length() > 13){
+			pname = pname.substring(0, pname.length() - 3);
+		}
+		player.setPlayerListName(pname + "[" + i + "]"); 
+	}
 	public List<String> listKits(){
 		File dir1 = plugin.getDataFolder();
 		File dir = new File(dir1, "Classes");
@@ -256,6 +294,29 @@ public class HungerListener implements Listener {
 			classes.add(j);
 		}
 		return classes;
+	}
+	public void addTag(Player player){
+		List<String> tagged = plugin.getConfig().getStringList("nametag");
+		tagged.add(player.getName() + plugin.teamGrabber(player));
+		plugin.getConfig().set("nametag", tagged);
+		plugin.saveConfig();
+	}
+	
+	public int getTag(Player player){
+		List<String> tagged = plugin.getConfig().getStringList("nametag");
+		String nameint = null;
+		for (String i : tagged){
+			if(i.contains(player.getName()));
+			nameint = i;
+		}
+		tagged.remove(nameint);
+		plugin.getConfig().set("nametag", tagged);
+		plugin.saveConfig();
+		String number = nameint.substring(nameint.length()-1, nameint.length());
+		Bukkit.getServer().broadcastMessage(number);
+		int tag = Integer.parseInt(number);
+		return tag;
+		
 	}
 	
 	@EventHandler
@@ -275,15 +336,42 @@ public class HungerListener implements Listener {
 		}
 		
 	}
+	@EventHandler
+	public void playerAttackEvent(EntityDamageByEntityEvent event){
+		if(plugin.getConfig().getBoolean("option.teams")){
+			if(plugin.getConfig().getBoolean("teamvote")){
+				if (event.getDamager() instanceof Player){
+
+					if (event.getEntity() instanceof Player){	
+	
+						Player damager= (Player) event.getDamager();
+						Player hurt = (Player) event.getEntity();
+						String hurttag = hurt.getPlayerListName().substring(hurt.getPlayerListName().length() - 3, hurt.getPlayerListName().length());
+						String damagertag = damager.getPlayerListName().substring(damager.getPlayerListName().length() - 3, damager.getPlayerListName().length());
+
+						if (hurttag.equalsIgnoreCase(damagertag)){
+							damager.sendMessage(prefix + "You can't hurt your buddy!");
+							event.setCancelled(true);
+						}
+					
+					}
+				}
+			}
+		}
+		
+	}
 	
 	@EventHandler
 	public void playerMove(PlayerMoveEvent event){
 		Player player = event.getPlayer();
 		int distancefromspawn = (plugin.getConfig().getInt("option.arenasize"))*(plugin.getConfig().getInt("option.arenasize"));
 		if(checkActive()){
+			if(player.getWorld() != Bukkit.getWorld(plugin.getConfig().getString("option.worldname"))){
+				player.teleport(Bukkit.getWorld(plugin.getConfig().getString("option.worldname")).getSpawnLocation().add(0, 64, 0));
+			}
 			Double distance = player.getLocation().distanceSquared(Bukkit.getServer().getWorld(plugin.getConfig().getString("option.worldname")).getSpawnLocation());
 			int distanceint = distance.intValue();
-			if (distanceint > distancefromspawn - 3000){
+			if (distanceint > distancefromspawn - 7000){
 				player.sendMessage(prefix + "You are approaching the force field. Contact with field results in death");
 			}
 			if(distance > distancefromspawn){
@@ -324,6 +412,8 @@ public class HungerListener implements Listener {
 		displayMessageDelayed(player, prefix + "Type /votestart to vote to start");
 		displayMessageDelayed(player, prefix + "Get info about the server with /info");
 		displayMessageDelayed(player, prefix + "Player list: " + pNameList);
+		displayMessageDelayed(player, prefix + "Want to play a game with teams? Type /vote yes");
+		displayMessageDelayed(player, prefix + plugin.getConfig().getString("option.joinmessage"));
 		if(Bukkit.getServer().getOnlinePlayers().length == Bukkit.getServer().getMaxPlayers()){
 			if(player.hasPermission("hc.vip")){
 				lastjoin.kickPlayer(prefix + "Making room for a VIP");
@@ -349,6 +439,7 @@ public class HungerListener implements Listener {
 				event.allow();
 				removeList(player,"leftgame");
 				addList(player, "participants");
+				setTag(getTag(player), player);
 				return;
 			}
 			else{
@@ -360,10 +451,10 @@ public class HungerListener implements Listener {
 		else {
 			player.teleport(plugin.getServer().getWorld("world").getSpawnLocation());
 			if(Bukkit.getServer().getOnlinePlayers().length >= 1){
-				Bukkit.getServer().broadcastMessage(prefix + "Round is starting");
-				if(!plugin.countdownactive){
+				/**if(!plugin.countdownactive){
 					plugin.countdown(player);
 				}
+				*/
 
 				 
 
@@ -390,6 +481,7 @@ public class HungerListener implements Listener {
 				return;
 			}
 			else{
+				addTag(player);
 				removeList(player, "participants");
 				addList(player, "leftgame");
 				if (checkList(player, "leftgame")){

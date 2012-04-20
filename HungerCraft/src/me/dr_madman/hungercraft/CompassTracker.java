@@ -1,6 +1,7 @@
 package me.dr_madman.hungercraft;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -15,6 +16,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 public class CompassTracker implements Listener{
 	public final Logger logger = Logger.getLogger("Minecraft");
 	public static ArrayList<String> toggleActivated = new ArrayList<String>();
+	private HungerCraft plugin;
+	public CompassTracker(HungerCraft instance) {plugin = instance;}
 	@EventHandler 
 	public void onCompassRightClick(PlayerInteractEvent event){
 		Player player = event.getPlayer();
@@ -32,6 +35,16 @@ public class CompassTracker implements Listener{
 					players.add(parname);
 				}
 				players.remove(player.getName());
+				Iterator<String> itr = players.iterator();
+				while(itr.hasNext()){
+					String element = itr.next();
+					if (Bukkit.getServer().getPlayer(element).getWorld() == Bukkit.getWorld("world")){
+						itr.remove();	
+					}
+					if (plugin.teamGrabber(Bukkit.getServer().getPlayer(element)) == plugin.teamGrabber(player)){
+						itr.remove();
+					}
+				}
 				if(players.size() == 0){
 					player.sendMessage("There are no players to track!");
 				}

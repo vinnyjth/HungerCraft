@@ -82,6 +82,25 @@ commands:
       usage: /<command> 
       permission: hc.gm
       permission-message: You don't have <permission>
+   vote:
+      description: Votes for teammode.
+      usage: /<command> [yes] [no]
+      permission: 
+      permission-message: You don't have <permission>
+   pm:
+      description: Send your parter a message.
+      usage: /<command> [message]
+      permission: 
+      permission-message: You don't have <permission>
+   track:
+      description: In a teamgame let's you find your bud.
+      usage: /<command> 
+      permission: 
+      permission-message: You don't have <permission>
+
+
+
+
 
 
 

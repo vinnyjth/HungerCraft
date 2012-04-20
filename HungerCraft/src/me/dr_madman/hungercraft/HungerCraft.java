@@ -39,13 +39,16 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public static FileConfiguration cfg;
 	public static HungerCraft plugin;
 	public static PluginDescriptionFile plugdes;
-	public static CompassTracker compasstracker = new CompassTracker();
+	public  CompassTracker compasstracker = new CompassTracker(this);
 	public HungerListener hungerlistener = new HungerListener(this);
 	public RandomTeleport randomteleport = new RandomTeleport(this);
 	public WorldManagement worldmanagement = new WorldManagement(this);
+	public TeamHandler teamhandler = new TeamHandler(this);
 	public KitHandler kithandler = new KitHandler(this);
 	public CompassTrackerUpdater compasstrackerupdater = new CompassTrackerUpdater(this);
 	private int id;
+	private int yes;
+	private int no;
 	public int tostart = 0;
 	public int voted = 0;
 	public boolean countdownactive = false;
@@ -53,7 +56,9 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 	public HashMap<Player, String> chosenkit = new HashMap<Player, String>();
 	public HashMap<Player, String> chosenkitvip = new HashMap<Player, String>();
 	private HashMap<Player, Boolean> hasvoted = new HashMap<Player, Boolean>();
+	private HashMap<Player, Boolean> hasvotedteam = new HashMap<Player, Boolean>();
 	public HashMap<Player, Boolean> isgm = new HashMap<Player, Boolean>();
+	public HashMap<Integer, List<Player>> teams = new HashMap<Integer, List<Player>>();
 	public Location getLocation(Player p, int i){
 		int x = cfg.getInt(p.getWorld().getName() + "." + i + "." + "X");
         int y = cfg.getInt(p.getWorld().getName() + "." + i + "." + "Y");
@@ -69,6 +74,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         getServer().getPluginManager().registerEvents(hungerlistener, this);
         getServer().getPluginManager().registerEvents(compasstracker, this);
         checkFolder();
+        clearTags();
         checkVIPFolder();
         cfg = getConfig();
         cfg.addDefault("isactive", false);
@@ -77,9 +83,12 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         cfg.addDefault("option.arenasize", 500);
         cfg.addDefault("option.borderkill", true);
         cfg.addDefault("option.joinmessage", "Interested in VIP or Gamemaker? Type /buy");
+        cfg.addDefault("option.teams", true);
         cfg.addDefault("participants", null);
         cfg.addDefault("leftgame", null);
+        cfg.addDefault("nametag", null);
         cfg.addDefault("dead", null);
+        cfg.addDefault("teamvote", null);
         cfg.addDefault("world", "world");
         cfg.addDefault("motd", "Game inactive");
         cfg.addDefault("option.timebetweenrounds", 300);
@@ -90,6 +99,9 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
         tostart = 0;
         voted = 0;
         hasvoted.clear();
+        hasvotedteam.clear();
+        yes = 0;
+        no = 0;
         try {
 			KitHandler.initKits();
 			KitHandler.initVIP();
@@ -127,6 +139,12 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			return false;
 		}
 		
+	}
+	public void clearTags(){
+		for (Player player: getServer().getOnlinePlayers()){
+			String pname = player.getName();
+			player.setPlayerListName(pname);
+		}
 	}
 	/**public HashMap getKits(){
 		HashMap<String, List<ItemStack>> kits = new HashMap<String, List<ItemStack>>();
@@ -277,14 +295,36 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		voted = 0;
 		tostart = 0;
 		hasvoted.clear();
+		hasvotedteam.clear();
+		checkVotes();
 		saveConfig();
 		randomTeleport();
+	    if(getConfig().getBoolean("option.teams")){
+	    	if(getConfig().getBoolean("teamvote")){
+	    		teamhandler.initTeams();
+	    		teamhandler.setTeamTags();
+	    	}
+	    	
+	    }
 		sender.getWorld().setPVP(true);
 	    World world = sender.getWorld();
 	    world.setTime(0);
 	    setParticipants();
 	    Bukkit.getServer().broadcastMessage(prefix + "The Hunger Games have Begun!");
-	    brodcastInvincbility();
+	    if(getConfig().getBoolean("option.teams")){
+	    	if(getConfig().getBoolean("teamvote")){
+	    		teamhandler.initTeams();
+	    		teamhandler.setTeamTags();
+	    		this.getServer().getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
+
+	    			   public void run() {
+	    			       tellTeams();
+	    			   }
+	    			}, 60L);
+	    	}
+	    	
+	    }
+	    //brodcastInvincbility();
 	    setMOTD("Game in progress");
 	    for(Player player : Bukkit.getServer().getOnlinePlayers()){
 	    	if (chosenkit.containsKey(player)){
@@ -306,6 +346,36 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				}
 	    	}
 	    }
+	}
+	public void checkVotes(){
+		if(yes > no){
+			getConfig().set("teamvote", true);
+			saveConfig();
+			return;
+		}
+		if(no > yes){
+			getConfig().set("teamvote", false);
+			saveConfig();
+			return;
+		}
+		else{
+			getConfig().set("teamvote", false);
+			saveConfig();
+			return;
+		}
+		
+	}
+	public void tellTeams(){
+		for(Player player : getServer().getOnlinePlayers()){
+			int team = teamGrabber(player);
+			List<Player> players = teams.get(team);
+			List<String> playersnames = new ArrayList<String>();
+			for (Player p : players){
+				playersnames.add(p.getName());
+			}
+			player.sendMessage(prefix + "Your team is: " + playersnames);
+
+		}
 	}
 	public void clearList(String list){
 		cfg = getConfig();
@@ -367,6 +437,7 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		clearList("leftgame");
 		clearList("dead");
 		saveConfig();
+		teams.clear();
 		sender.getWorld().setPVP(false);
 	}
 	public void stopGameEndofRound(){
@@ -374,6 +445,8 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 		cfg.set("setup", false);
 		cfg.set("isactive", false);
 		cfg.set("motd", "Game has not started yet");
+		yes = 0;
+		no = 0;
 		clearList("participants");
 		clearList("leftgame");
 		clearList("dead");
@@ -436,8 +509,31 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 			Bukkit.getServer().broadcastMessage(prefix + votesleft + " votes are needed to start the game");
 		}
 	}
+	public boolean processVote(String vote, Player player){
+		if(vote.equalsIgnoreCase("yes")){
+			yes++;
+			player.sendMessage(prefix + "You have voted yes!");
+			getServer().broadcastMessage(prefix +"The votes for teammode are now " + yes + " for yes, and " + no + " for no");
+			return true;
+		}
+		if(vote.equalsIgnoreCase("no")){
+			no++;
+			player.sendMessage(prefix + "You have voted no!");
+			getServer().broadcastMessage(prefix +"The votes for teammode are now " + yes + " for yes, and " + no + " for no");
+			return true;
+		}
+		else{
+			player.sendMessage("You need to vote either yes or no!");
+			return false;
+		}
+	}
 	
-		
+	public int teamGrabber(Player player){
+		String talkertag = player.getPlayerListName().substring(player.getPlayerListName().length() - 3, player.getPlayerListName().length());
+		char talkerchar = talkertag.charAt(1);
+		int team = Character.getNumericValue(talkerchar); 
+		return team;
+	}
 
 	public boolean onCommand(CommandSender sender, Command cmd, String commandLabel, String[] args){
 		Player player = (Player) sender;
@@ -586,6 +682,28 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 				return true;
 			}
 		}
+		if (cmd.getName().equalsIgnoreCase("vote")){
+			if(hasvotedteam.containsKey(player)){
+				if(hasvotedteam.get(player) == true){
+					player.sendMessage(prefix + "You have already voted!");
+					return true;
+				}
+			}
+			if (args.length == 0){
+				return false;
+			}
+			else{
+				if (processVote(args[0], player)){
+						hasvotedteam.put(player, true);
+					return true;
+					
+				}
+				else {
+					return false;
+				}
+				
+			}
+		}
 		if (cmd.getName().equalsIgnoreCase("votestart")){
 			if(getServer().getOnlinePlayers().length <= 1){
 				player.sendMessage(prefix + "You can't vote to start, not enough players");
@@ -667,6 +785,40 @@ public class HungerCraft extends JavaPlugin implements CommandExecutor{
 
 			}
 		}
+		if(cmd.getName().equalsIgnoreCase("pm")){
+			if(hungerlistener.checkActive()){
+					if(getConfig().getBoolean("teamvote")){
+						int team = teamGrabber(player);
+						List<Player> playerlist = teams.get(team);
+						String msg = "";
+						for (int i = 0; i < args.length; i++) {
+							msg += args[i] + " ";
+						}
+						for (Player p: playerlist){
+							p.sendMessage(prefix + player.getName() + " says: " + msg );
+						}
+						return true;
+				}
+			}
+		}
+		if(cmd.getName().equalsIgnoreCase("track")){
+			if(hungerlistener.checkActive()){
+					if(getConfig().getBoolean("teamvote")){
+						int team = teamGrabber(player);
+						List<Player> playerlist = teams.get(team);
+						playerlist.remove(player);
+						if(playerlist.size() == 0){
+							player.sendMessage(prefix + "Your buddy is dead!");
+							return true;
+						}
+						Player tracked = playerlist.get(0);
+						CompassTrackerUpdater.setWatcher(player, tracked);
+						player.sendMessage(prefix + "You are now tracking " + tracked.getName());
+						tracked.sendMessage(prefix + player.getName() + " is looking for you!");
+					}
+						return true;
+				}
+			}
 
 		//+++++++++++++++++++++++++++++++++++VIP+++++++++++++++++++++++++++++++++++++++
 		if (cmd.getName().equalsIgnoreCase("vipkit")){
